@@ -1,0 +1,62 @@
+/* Windify Academy Color Variables */
+:root {
+  --color-primary: #F25A23;
+  --color-primary-light: #F19255;
+  --color-secondary: #224976;
+  
+  /* Status colors */
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-info: #3B82F6;
+  
+  /* Neutral colors */
+  --color-gray-50: #F9FAFB;
+  --color-gray-100: #F3F4F6;
+  --color-gray-200: #E5E7EB;
+  --color-gray-300: #D1D5DB;
+  --color-gray-400: #9CA3AF;
+  --color-gray-500: #6B7280;
+  --color-gray-600: #4B5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1F2937;
+  --color-gray-900: #111827;
+  
+  /* Background colors */
+  --color-bg-primary: #FFFFFF;
+  --color-bg-secondary: #F9FAFB;
+  --color-bg-accent: #FEF3F2;
+  
+  /* Text colors */
+  --color-text-primary: #111827;
+  --color-text-secondary: #6B7280;
+  --color-text-muted: #9CA3AF;
+}
+
+/* Utility classes for colors */
+.text-primary { color: var(--color-primary) !important; }
+.text-primary-light { color: var(--color-primary-light) !important; }
+.text-secondary { color: var(--color-secondary) !important; }
+
+.bg-primary { background-color: var(--color-primary) !important; }
+.bg-primary-light { background-color: var(--color-primary-light) !important; }
+.bg-secondary { background-color: var(--color-secondary) !important; }
+
+.border-primary { border-color: var(--color-primary) !important; }
+.border-primary-light { border-color: var(--color-primary-light) !important; }
+.border-secondary { border-color: var(--color-secondary) !important; }
+
+/* Gradient utilities */
+.bg-gradient-primary {
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+}
+
+.bg-gradient-primary-reverse {
+  background: linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%);
+}
+
+/* Hover utilities */
+.hover-bg-primary:hover { background-color: var(--color-primary) !important; }
+.hover-bg-primary-light:hover { background-color: var(--color-primary-light) !important; }
+.hover-text-primary:hover { color: var(--color-primary) !important; }
+.hover-border-primary:hover { border-color: var(--color-primary) !important; }
