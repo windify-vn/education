@@ -9,7 +9,7 @@ import frappe
 from frappe import _
 from frappe.email.doctype.email_group.email_group import add_subscribers
 from frappe.model.mapper import get_mapped_doc
-from frappe.utils import cstr, flt, getdate, today
+from frappe.utils import add_days, cstr, flt, get_datetime, getdate, today, to_timedelta
 from frappe.utils.dateutils import get_dates_from_timegrain
 from frappe.utils.file_manager import save_file
 
@@ -86,6 +86,20 @@ def check_attendance_records_exist(course_schedule=None, student_group=None, dat
 		return frappe.get_list(
 			"Student Attendance", filters={"student_group": student_group, "date": date}
 		)
+
+
+@frappe.whitelist()
+def course_schedule_has_attendance(course_schedule):
+	if not course_schedule:
+		return 0
+
+	if not frappe.has_permission("Course Schedule", "read", doc=course_schedule):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	return 1 if frappe.db.exists(
+		"Student Attendance",
+		{"course_schedule": course_schedule, "docstatus": ("!=", 2)},
+	) else 0
 
 
 @frappe.whitelist()
@@ -280,14 +294,553 @@ def get_course_schedule_events(start, end, filters=None):
 		if event.get('course'):
 			title_parts.append(f'Khóa học: {event.get("course")}')
 		if event.get('student_group'):
-			title_parts.append(f'Lớp: {event.get('student_group')}')
+			title_parts.append(f'Lớp: {event.get("student_group")}')
 		if event.get('instructor_name'):
-			title_parts.append(f'Giáo viên: {event.get('instructor_name')}')
+			title_parts.append(f'Giáo viên: {event.get("instructor_name")}')
 		if event.get('room'):
-			title_parts.append(f'Phòng: {event.get('room')}')
+			title_parts.append(f'Phòng: {event.get("room")}')
 		event['title'] = '\n'.join(title_parts)
 
 	return data
+
+
+def _school_calendar_json(value, fallback=None):
+	if value in (None, ""):
+		return fallback
+	if isinstance(value, str):
+		return frappe.parse_json(value)
+	return value
+
+
+def _school_calendar_source_enabled(calendars, source):
+	return not calendars or source in calendars
+
+
+def _school_calendar_date(value):
+	if not value:
+		frappe.throw(_("Missing calendar date range"))
+	return get_datetime(value)
+
+
+def _school_calendar_normalize_all_day_end(starts_on, ends_on, all_day):
+	if not all_day:
+		return ends_on
+	if getdate(ends_on) > getdate(starts_on) and ends_on.strftime("%H:%M:%S") == "00:00:00":
+		return get_datetime(f"{add_days(getdate(ends_on), -1)} 23:59:59")
+	return ends_on
+
+
+def _school_calendar_color(color):
+	color_map = {
+		"blue": "#1a73e8",
+		"green": "#188038",
+		"red": "#d93025",
+		"orange": "#f29900",
+		"yellow": "#fbbc04",
+		"teal": "#009688",
+		"violet": "#7b1fa2",
+		"cyan": "#0097a7",
+		"amber": "#f9ab00",
+		"pink": "#d81b60",
+		"purple": "#8e24aa",
+	}
+	if color and str(color).startswith("#"):
+		return color
+	return color_map.get(color or "blue", color_map["blue"])
+
+
+def _school_calendar_search_match(row, search, fields):
+	if not search:
+		return True
+	search = search.lower()
+	return any(search in cstr(row.get(field)).lower() for field in fields)
+
+
+def _school_calendar_child_table_options(parent_doctype, table_fieldname):
+	return frappe.db.get_value(
+		"DocField",
+		{"parent": parent_doctype, "fieldname": table_fieldname, "fieldtype": "Table"},
+		"options",
+	)
+
+
+def _school_calendar_get_resource_map(schedules):
+	student_groups = sorted({schedule.student_group for schedule in schedules if schedule.student_group})
+	schedule_names = sorted({schedule.name for schedule in schedules if schedule.name})
+	resource_map = {
+		schedule.name: {"instructor": set(), "teaching_assistant": set()}
+		for schedule in schedules
+	}
+
+	if student_groups:
+		for row in frappe.get_all(
+			"Student Group Instructor",
+			fields=["parent", "instructor"],
+			filters={"parent": ["in", student_groups]},
+		):
+			for schedule in schedules:
+				if schedule.student_group == row.parent and row.instructor:
+					resource_map[schedule.name]["instructor"].add(row.instructor)
+
+	student_group_assistant_doctype = _school_calendar_child_table_options(
+		"Student Group", "teaching_assistants"
+	)
+	if student_group_assistant_doctype and student_groups:
+		for row in frappe.get_all(
+			student_group_assistant_doctype,
+			fields=["parent", "employee"],
+			filters={"parent": ["in", student_groups]},
+		):
+			for schedule in schedules:
+				if schedule.student_group == row.parent and row.employee:
+					resource_map[schedule.name]["teaching_assistant"].add(row.employee)
+
+	course_schedule_assistant_doctype = _school_calendar_child_table_options(
+		"Course Schedule", "teaching_assistants"
+	)
+	if course_schedule_assistant_doctype and schedule_names:
+		for row in frappe.get_all(
+			course_schedule_assistant_doctype,
+			fields=["parent", "employee"],
+			filters={"parent": ["in", schedule_names]},
+		):
+			if row.parent in resource_map and row.employee:
+				resource_map[row.parent]["teaching_assistant"].add(row.employee)
+
+	return resource_map
+
+
+def _school_calendar_resource_match(schedule, resource_filters, resource_map):
+	if not resource_filters:
+		return True
+
+	resources = resource_map.get(schedule.name, {})
+	instructors = set(resources.get("instructor") or [])
+	if schedule.get("instructor"):
+		instructors.add(schedule.get("instructor"))
+	teaching_assistants = set(resources.get("teaching_assistant") or [])
+
+	for resource in resource_filters:
+		if "::" in resource:
+			resource_type, resource_name = resource.split("::", 1)
+			if resource_type == "instructor" and resource_name in instructors:
+				return True
+			if resource_type == "teaching_assistant" and resource_name in teaching_assistants:
+				return True
+		elif resource == "instructor" and instructors:
+			return True
+		elif resource == "teaching_assistant" and teaching_assistants:
+			return True
+	return False
+
+
+def _school_calendar_resource_key(resource_type, resource_name):
+	return f"{resource_type}::{resource_name}"
+
+
+def _school_calendar_get_resource_options(schedules, resource_map):
+	instructor_counts = {}
+	assistant_counts = {}
+
+	for schedule in schedules:
+		resources = resource_map.get(schedule.name, {})
+		instructors = set(resources.get("instructor") or [])
+		if schedule.get("instructor"):
+			instructors.add(schedule.get("instructor"))
+		for instructor in instructors:
+			instructor_counts[instructor] = instructor_counts.get(instructor, 0) + 1
+
+		for assistant in resources.get("teaching_assistant") or []:
+			assistant_counts[assistant] = assistant_counts.get(assistant, 0) + 1
+
+	instructor_labels = {}
+	if instructor_counts:
+		for row in frappe.get_all(
+			"Instructor",
+			fields=["name", "instructor_name"],
+			filters={"name": ["in", list(instructor_counts)]},
+		):
+			instructor_labels[row.name] = row.instructor_name or row.name
+
+	assistant_labels = {}
+	if assistant_counts:
+		for row in frappe.get_all(
+			"Employee",
+			fields=["name", "employee_name"],
+			filters={"name": ["in", list(assistant_counts)]},
+		):
+			assistant_labels[row.name] = row.employee_name or row.name
+
+	def build_options(resource_type, counts, labels, color):
+		return sorted(
+			[
+				{
+					"id": _school_calendar_resource_key(resource_type, name),
+					"name": name,
+					"label": labels.get(name) or name,
+					"type": resource_type,
+					"count": count,
+					"color": color,
+				}
+				for name, count in counts.items()
+			],
+			key=lambda row: cstr(row.get("label")).lower(),
+		)
+
+	return {
+		"instructor": build_options("instructor", instructor_counts, instructor_labels, "#1a73e8"),
+		"teaching_assistant": build_options(
+			"teaching_assistant", assistant_counts, assistant_labels, "#8e24aa"
+		),
+	}
+
+
+@frappe.whitelist()
+def get_calendar_sources():
+	"""Return calendar sources available to the current user for the Desk calendar page."""
+	sources = []
+
+	if frappe.has_permission("Course Schedule", "read"):
+		sources.append(
+			{
+				"id": "course_schedule",
+				"label": _("Course Schedule"),
+				"doctype": "Course Schedule",
+				"color": "#1a73e8",
+				"checked": 1,
+				"read_only": 0 if frappe.has_permission("Course Schedule", "write") else 1,
+				"can_create": 1 if frappe.has_permission("Course Schedule", "create") else 0,
+			}
+		)
+
+	if frappe.has_permission("Event", "read"):
+		sources.append(
+			{
+				"id": "event",
+				"label": _("My Events"),
+				"doctype": "Event",
+				"color": "#188038",
+				"checked": 1,
+				"read_only": 0 if frappe.has_permission("Event", "create") else 1,
+				"can_create": 1 if frappe.has_permission("Event", "create") else 0,
+			}
+		)
+
+	return sources
+
+
+@frappe.whitelist()
+def get_calendar_resources(start, end, calendars=None):
+	"""Return instructors and assistants present in Course Schedule events for the current range."""
+	start_dt = _school_calendar_date(start)
+	end_dt = _school_calendar_date(end)
+	calendars = _school_calendar_json(calendars, []) or []
+
+	if not _school_calendar_source_enabled(calendars, "course_schedule") or not frappe.has_permission(
+		"Course Schedule", "read"
+	):
+		return {"instructor": [], "teaching_assistant": []}
+
+	schedules = frappe.get_list(
+		"Course Schedule",
+		fields=["name", "student_group", "instructor"],
+		filters={"schedule_date": ["between", [getdate(start_dt), getdate(end_dt)]]},
+		order_by="schedule_date asc, from_time asc",
+	)
+	resource_map = _school_calendar_get_resource_map(schedules)
+	return _school_calendar_get_resource_options(schedules, resource_map)
+
+
+@frappe.whitelist()
+def get_calendar_events(start, end, calendars=None, search=None, view=None, resource_filters=None):
+	"""Return calendar events for the custom Academy Calendar Desk page."""
+	start_dt = _school_calendar_date(start)
+	end_dt = _school_calendar_date(end)
+	if end_dt < start_dt:
+		frappe.throw(_("End date must be after start date"))
+
+	calendars = _school_calendar_json(calendars, []) or []
+	resource_filters = set(_school_calendar_json(resource_filters, ["instructor", "teaching_assistant"]) or [])
+	search = cstr(search).strip()
+	events = []
+
+	if _school_calendar_source_enabled(calendars, "course_schedule") and frappe.has_permission(
+		"Course Schedule", "read"
+	):
+		schedules = frappe.get_list(
+			"Course Schedule",
+			fields=[
+				"name",
+				"course",
+				"room",
+				"student_group",
+				"instructor",
+				"instructor_name",
+				"class_schedule_color",
+				"schedule_date",
+				"from_time",
+				"to_time",
+			],
+			filters={"schedule_date": ["between", [getdate(start_dt), getdate(end_dt)]]},
+			order_by="schedule_date asc, from_time asc",
+		)
+		resource_map = _school_calendar_get_resource_map(schedules)
+		for schedule in schedules:
+			if not _school_calendar_resource_match(schedule, resource_filters, resource_map):
+				continue
+			if not _school_calendar_search_match(
+				schedule, search, ["course", "room", "student_group", "instructor_name"]
+			):
+				continue
+			starts_on = get_datetime(f"{schedule.schedule_date} {schedule.from_time}")
+			ends_on = get_datetime(f"{schedule.schedule_date} {schedule.to_time}")
+			title = schedule.get("course") or _("Course Schedule")
+			subtitle = " · ".join(
+				filter(None, [schedule.get("student_group"), schedule.get("instructor_name"), schedule.get("room")])
+			)
+			events.append(
+				{
+					"id": f"course_schedule::{schedule.name}",
+					"name": schedule.name,
+					"doctype": "Course Schedule",
+					"source": "course_schedule",
+					"title": title,
+					"subtitle": subtitle,
+					"start": starts_on,
+					"end": ends_on,
+					"allDay": 0,
+					"color": _school_calendar_color(schedule.get("class_schedule_color")),
+					"editable": False,
+					"extendedProps": {
+						"doctype": "Course Schedule",
+						"name": schedule.name,
+						"source": "course_schedule",
+						"subtitle": subtitle,
+						"read_only": 0
+						if frappe.has_permission("Course Schedule", "write", doc=schedule.name)
+						else 1,
+					},
+				}
+			)
+
+	if _school_calendar_source_enabled(calendars, "event") and frappe.has_permission("Event", "read"):
+		event_rows = frappe.get_list(
+			"Event",
+			fields=[
+				"name",
+				"subject",
+				"starts_on",
+				"ends_on",
+				"all_day",
+				"event_type",
+				"color",
+				"description",
+				"status",
+				"owner",
+			],
+			filters=[["Event", "starts_on", "<=", end_dt]],
+			or_filters=[
+				["Event", "ends_on", ">=", start_dt],
+				["Event", "ends_on", "is", "not set"],
+			],
+			order_by="starts_on asc",
+		)
+		for event in event_rows:
+			if event.get("event_type") == "Private" and event.get("owner") != frappe.session.user:
+				continue
+			if not _school_calendar_search_match(event, search, ["subject", "description", "status"]):
+				continue
+			event_start = get_datetime(event.get("starts_on"))
+			event_end = get_datetime(event.get("ends_on") or event.get("starts_on"))
+			if event_end < start_dt or event_start > end_dt:
+				continue
+			color = event.get("color") or "#188038"
+			if event.get("all_day") and getdate(event_end) <= getdate(event.get("starts_on")):
+				event_end = add_days(getdate(event.get("starts_on")), 1)
+			events.append(
+				{
+					"id": f"event::{event.name}",
+					"name": event.name,
+					"doctype": "Event",
+					"source": "event",
+					"title": event.get("subject") or _("Untitled Event"),
+					"start": event_start,
+					"end": event_end,
+					"allDay": event.get("all_day"),
+					"color": color,
+					"editable": frappe.has_permission("Event", "write", event.name),
+					"extendedProps": {
+						"doctype": "Event",
+						"name": event.name,
+						"source": "event",
+						"description": event.get("description"),
+						"status": event.get("status"),
+						"read_only": 0 if frappe.has_permission("Event", "write", event.name) else 1,
+					},
+				}
+			)
+
+	return events
+
+
+@frappe.whitelist()
+def get_calendar_event(name):
+	"""Return a single editable Event payload for the custom Academy Calendar page."""
+	name = cstr(name).replace("event::", "")
+	doc = frappe.get_doc("Event", name)
+	if not doc.has_permission("read"):
+		frappe.throw(_("Not permitted to read this event"), frappe.PermissionError)
+
+	return {
+		"name": doc.name,
+		"title": doc.subject,
+		"starts_on": doc.starts_on,
+		"ends_on": doc.ends_on or doc.starts_on,
+		"all_day": doc.all_day,
+		"visibility": doc.event_type or "Private",
+		"event_category": doc.event_category or "Event",
+		"color": doc.color or "#188038",
+		"description": doc.description or "",
+		"status": doc.status or "Open",
+	}
+
+
+def _school_calendar_event_doc(data, doc=None):
+	data = _school_calendar_json(data, {}) or {}
+	subject = cstr(data.get("title") or data.get("subject")).strip()
+	if not subject:
+		frappe.throw(_("Title is required"))
+
+	starts_on = _school_calendar_date(data.get("starts_on") or data.get("start"))
+	ends_on = data.get("ends_on") or data.get("end")
+	ends_on = get_datetime(ends_on) if ends_on else starts_on
+	if ends_on < starts_on:
+		frappe.throw(_("End date must be after start date"))
+	all_day = 1 if data.get("all_day") or data.get("allDay") else 0
+	ends_on = _school_calendar_normalize_all_day_end(starts_on, ends_on, all_day)
+
+	doc = doc or frappe.new_doc("Event")
+	doc.subject = subject
+	doc.starts_on = starts_on
+	doc.ends_on = ends_on
+	doc.all_day = all_day
+	doc.event_type = data.get("event_type") or data.get("visibility") or doc.event_type or "Private"
+	doc.event_category = data.get("event_category") or doc.event_category or "Event"
+	doc.color = data.get("color") or doc.color or "#188038"
+	doc.description = data.get("description") or ""
+	doc.status = data.get("status") or doc.status or "Open"
+	return doc
+
+
+def _school_calendar_course_schedule_doc(data, doc=None):
+	data = _school_calendar_json(data, {}) or {}
+	starts_on = _school_calendar_date(data.get("starts_on") or data.get("start"))
+	ends_on = _school_calendar_date(data.get("ends_on") or data.get("end"))
+	if ends_on <= starts_on:
+		frappe.throw(_("End date must be after start date"))
+	if getdate(starts_on) != getdate(ends_on):
+		frappe.throw(_("Course Schedule must start and end on the same date"))
+
+	required_fields = ["student_group", "room"]
+	for fieldname in required_fields:
+		if not data.get(fieldname):
+			frappe.throw(_("{0} is required").format(_(fieldname.replace("_", " ").title())))
+
+	doc = doc or frappe.new_doc("Course Schedule")
+	doc.student_group = data.get("student_group")
+	doc.course = data.get("course")
+	doc.instructor = data.get("instructor")
+	doc.room = data.get("room")
+	doc.schedule_date = getdate(starts_on)
+	doc.from_time = to_timedelta(starts_on.time())
+	doc.to_time = to_timedelta(ends_on.time())
+	doc.duration = int((ends_on - starts_on).total_seconds() / 60)
+	doc.class_schedule_color = data.get("class_schedule_color") or doc.class_schedule_color or "blue"
+	return doc
+
+
+@frappe.whitelist()
+def create_calendar_event(data):
+	"""Create a core Event from the custom Academy Calendar page."""
+	if not frappe.has_permission("Event", "create"):
+		frappe.throw(_("Not permitted to create events"), frappe.PermissionError)
+	doc = _school_calendar_event_doc(data)
+	doc.insert()
+	return {"name": doc.name}
+
+
+@frappe.whitelist()
+def create_course_schedule_event(data):
+	"""Create a Course Schedule from the custom Academy Calendar page."""
+	if not frappe.has_permission("Course Schedule", "create"):
+		frappe.throw(_("Not permitted to create course schedules"), frappe.PermissionError)
+	doc = _school_calendar_course_schedule_doc(data)
+	doc.insert()
+	return {"name": doc.name}
+
+
+@frappe.whitelist()
+def update_calendar_event(name, data):
+	"""Update a core Event from the custom Academy Calendar page."""
+	name = cstr(name).replace("event::", "")
+	doc = frappe.get_doc("Event", name)
+	if not doc.has_permission("write"):
+		frappe.throw(_("Not permitted to update this event"), frappe.PermissionError)
+	doc = _school_calendar_event_doc(data, doc)
+	doc.save()
+	return {"name": doc.name}
+
+
+@frappe.whitelist()
+def delete_calendar_event(name):
+	"""Delete a core Event from the custom Academy Calendar page."""
+	name = cstr(name).replace("event::", "")
+	doc = frappe.get_doc("Event", name)
+	if not doc.has_permission("delete"):
+		frappe.throw(_("Not permitted to delete this event"), frappe.PermissionError)
+	frappe.delete_doc("Event", doc.name)
+	return {"name": doc.name}
+
+
+@frappe.whitelist()
+def get_people(search=None):
+	"""Return people-like records for the calendar sidebar search."""
+	search = cstr(search).strip()
+	if not search:
+		return []
+
+	people = []
+	if frappe.has_permission("Instructor", "read"):
+		for instructor in frappe.get_list(
+			"Instructor",
+			fields=["name", "instructor_name"],
+			filters={"instructor_name": ["like", f"%{search}%"]},
+			limit_page_length=10,
+		):
+			people.append(
+				{
+					"doctype": "Instructor",
+					"name": instructor.name,
+					"label": instructor.instructor_name or instructor.name,
+				}
+			)
+
+	if frappe.has_permission("User", "read") and len(people) < 10:
+		for user in frappe.get_list(
+			"User",
+			fields=["name", "full_name"],
+			filters={"enabled": 1, "full_name": ["like", f"%{search}%"]},
+			limit_page_length=10 - len(people),
+		):
+			people.append(
+				{
+					"doctype": "User",
+					"name": user.name,
+					"label": user.full_name or user.name,
+				}
+			)
+
+	return people
 
 
 @frappe.whitelist()
@@ -597,6 +1150,29 @@ def get_instructors(student_group):
 	return frappe.get_all(
 		"Student Group Instructor", {"parent": student_group}, pluck="instructor"
 	)
+
+
+@frappe.whitelist()
+def get_course_schedule_student_group_defaults(student_group):
+	"""Return Student Group defaults used by the Course Schedule form."""
+	if not student_group:
+		return {}
+
+	doc = frappe.get_doc("Student Group", student_group)
+	if not doc.has_permission("read"):
+		frappe.throw(_("Not permitted to read this student group"), frappe.PermissionError)
+
+	start_date = doc.start_date
+	end_date = doc.end_date
+
+	instructors = [row.instructor for row in doc.instructors if row.instructor]
+	return {
+		"program": doc.program,
+		"course": doc.course,
+		"start_date": start_date,
+		"end_date": end_date,
+		"instructors": instructors,
+	}
 
 
 @frappe.whitelist()
@@ -1715,6 +2291,43 @@ def get_topics_by_course(doctype, txt, searchfield, start, page_len, filters):
 
 
 @frappe.whitelist()
+def get_available_course_schedule_topics(doctype, txt, searchfield, start, page_len, filters):
+	"""Get course topics that are not already assigned to another Course Schedule."""
+	filters = filters or {}
+	course = filters.get("course")
+	course_schedule = filters.get("course_schedule")
+	if not course:
+		return []
+
+	return frappe.db.sql(
+		"""
+		SELECT t.name, t.topic_name
+		FROM `tabTopic` t
+		INNER JOIN `tabCourse Topic` ct ON ct.topic = t.name
+		WHERE ct.parent = %(course)s
+			AND (t.name LIKE %(txt)s OR t.topic_name LIKE %(txt)s)
+			AND NOT EXISTS (
+				SELECT 1
+				FROM `tabCourse Schedule` cs
+				WHERE cs.course = %(course)s
+					AND cs.topic = t.name
+					AND cs.docstatus != 2
+					AND (%(course_schedule)s IS NULL OR %(course_schedule)s = '' OR cs.name != %(course_schedule)s)
+			)
+		ORDER BY ct.idx, t.topic_name
+		LIMIT %(start)s, %(page_len)s
+		""",
+		{
+			"course": course,
+			"course_schedule": course_schedule,
+			"txt": f"%{txt}%",
+			"start": start,
+			"page_len": page_len,
+		},
+	)
+
+
+@frappe.whitelist()
 def get_course_topics(course):
 	"""Get list of topic names that belong to a course.
 	
@@ -1732,3 +2345,344 @@ def get_course_topics(course):
 	)
 	
 	return [t.topic for t in topics if t.topic]
+
+
+def _attendance_date(value, fieldname="date"):
+	if not value:
+		frappe.throw(_("{0} is required").format(_(fieldname.replace("_", " ").title())))
+	return getdate(value)
+
+
+def _attendance_statuses():
+	meta = frappe.get_meta("Student Attendance")
+	status_field = meta.get_field("status")
+	options = [cstr(status).strip() for status in (status_field.options or "").split("\n")]
+	return [status for status in options if status]
+
+
+def _validate_attendance_status(status):
+	status = cstr(status).strip()
+	if not status:
+		return ""
+	if status not in _attendance_statuses():
+		frappe.throw(_("Invalid attendance status {0}").format(frappe.bold(status)))
+	return status
+
+
+def _ensure_attendance_read_permission():
+	if not frappe.has_permission("Student Attendance", "read"):
+		frappe.throw(_("Not permitted to read student attendance"), frappe.PermissionError)
+
+
+def _ensure_student_group_read_permission(student_group):
+	if not student_group:
+		frappe.throw(_("Student Group is required"))
+	doc = frappe.get_doc("Student Group", student_group)
+	if not doc.has_permission("read"):
+		frappe.throw(_("Not permitted to read Student Group {0}").format(student_group), frappe.PermissionError)
+	return doc
+
+
+def _ensure_student_read_permission(student):
+	if not student:
+		frappe.throw(_("Student is required"))
+	doc = frappe.get_doc("Student", student)
+	if not doc.has_permission("read"):
+		frappe.throw(_("Not permitted to read Student {0}").format(student), frappe.PermissionError)
+	return doc
+
+
+def _student_belongs_to_group(student, student_group):
+	return frappe.db.exists(
+		"Student Group Student",
+		{"parent": student_group, "student": student, "active": 1},
+	)
+
+
+def _get_group_students(student_group):
+	_ensure_student_group_read_permission(student_group)
+	return frappe.get_all(
+		"Student Group Student",
+		fields=["student", "student_name", "group_roll_number"],
+		filters={"parent": student_group, "active": 1},
+		order_by="group_roll_number asc, student_name asc",
+	)
+
+
+def _attendance_summary(rows):
+	statuses = _attendance_statuses()
+	counts = {status: 0 for status in statuses}
+	for row in rows:
+		status = row.get("status")
+		if status:
+			counts[status] = counts.get(status, 0) + 1
+	total_records = sum(counts.values())
+	present = counts.get("Present", 0)
+	return {
+		"total": len(rows),
+		"marked": total_records,
+		"present": present,
+		"absent": counts.get("Absent", 0),
+		"leave": counts.get("Leave", 0),
+		"late": counts.get("Late", 0),
+		"unmarked": len([row for row in rows if not row.get("status")]),
+		"attendance_rate": round((present / total_records) * 100, 2) if total_records else 0,
+		"by_status": counts,
+	}
+
+
+@frappe.whitelist()
+def get_attendance_status_options():
+	"""Return the real Student Attendance status options configured in the DocType."""
+	_ensure_attendance_read_permission()
+	return _attendance_statuses()
+
+
+@frappe.whitelist()
+def get_attendance_classes():
+	"""Return readable Student Groups for attendance filters."""
+	if not frappe.has_permission("Student Group", "read"):
+		frappe.throw(_("Not permitted to read Student Groups"), frappe.PermissionError)
+
+	return frappe.get_list(
+		"Student Group",
+		fields=["name", "student_group_name", "program", "academic_year", "group_based_on"],
+		filters={"disabled": 0},
+		order_by="student_group_name asc",
+		limit_page_length=200,
+	)
+
+
+@frappe.whitelist()
+def get_attendance_students(student_group):
+	"""Return active students in a readable Student Group."""
+	students = _get_group_students(student_group)
+	student_ids = [student.student for student in students]
+	images = {}
+	if student_ids and frappe.has_permission("Student", "read"):
+		for row in frappe.get_all(
+			"Student",
+			fields=["name", "image"],
+			filters={"name": ["in", student_ids]},
+			limit_page_length=len(student_ids),
+		):
+			images[row.name] = row.image
+
+	return [
+		{
+			"student": row.student,
+			"student_name": row.student_name,
+			"group_roll_number": row.group_roll_number,
+			"image": images.get(row.student),
+		}
+		for row in students
+	]
+
+
+@frappe.whitelist()
+def get_class_attendance(date, student_group):
+	"""Return one-day Student Group attendance using real Student Attendance rows."""
+	_ensure_attendance_read_permission()
+	attendance_date = _attendance_date(date)
+	students = _get_group_students(student_group)
+	attendance_rows = frappe.get_list(
+		"Student Attendance",
+		fields=["name", "student", "student_name", "status", "leave_application", "docstatus"],
+		filters={
+			"student_group": student_group,
+			"date": attendance_date,
+			"docstatus": ["!=", 2],
+		},
+		limit_page_length=max(len(students), 1),
+	)
+	attendance_by_student = {row.student: row for row in attendance_rows}
+	rows = []
+	for index, student in enumerate(students, start=1):
+		attendance = attendance_by_student.get(student.student) or {}
+		rows.append(
+			{
+				"idx": index,
+				"student": student.student,
+				"student_name": student.student_name,
+				"group_roll_number": student.group_roll_number,
+				"attendance": attendance.get("name"),
+				"status": attendance.get("status") or "",
+				"note": attendance.get("leave_application") or "",
+				"docstatus": attendance.get("docstatus"),
+			}
+		)
+
+	return {
+		"date": attendance_date,
+		"student_group": student_group,
+		"rows": rows,
+		"summary": _attendance_summary(rows),
+		"status_options": _attendance_statuses(),
+		"can_write": 1 if frappe.has_permission("Student Attendance", "write") else 0,
+	}
+
+
+@frappe.whitelist()
+def get_student_attendance_history(student, student_group, from_date, to_date):
+	"""Return attendance history for a student within a bounded date range."""
+	_ensure_attendance_read_permission()
+	_ensure_student_read_permission(student)
+	_ensure_student_group_read_permission(student_group)
+	if not _student_belongs_to_group(student, student_group):
+		frappe.throw(_("Student does not belong to the selected Student Group"))
+
+	start_date = _attendance_date(from_date, "from_date")
+	end_date = _attendance_date(to_date, "to_date")
+	if start_date > end_date:
+		frappe.throw(_("From Date must be before To Date"))
+	if (end_date - start_date).days > 370:
+		frappe.throw(_("Date range cannot exceed 370 days"))
+
+	rows = frappe.get_list(
+		"Student Attendance",
+		fields=["name", "date", "status", "student", "student_name", "student_group", "leave_application", "docstatus"],
+		filters={
+			"student": student,
+			"student_group": student_group,
+			"date": ["between", [start_date, end_date]],
+			"docstatus": ["!=", 2],
+		},
+		order_by="date asc",
+		limit_page_length=400,
+	)
+	student_doc = frappe.get_doc("Student", student)
+	response_rows = []
+	for index, row in enumerate(rows, start=1):
+		response_rows.append(
+			{
+				"idx": index,
+				"name": row.name,
+				"date": row.date,
+				"status": row.status,
+				"note": row.leave_application or "",
+			}
+		)
+
+	return {
+		"student": {
+			"name": student_doc.name,
+			"student_name": student_doc.student_name,
+			"image": student_doc.image,
+			"student_group": student_group,
+		},
+		"rows": response_rows,
+		"summary": _attendance_summary(response_rows),
+		"status_options": _attendance_statuses(),
+	}
+
+
+@frappe.whitelist()
+def get_student_month_attendance(student, student_group, month, year):
+	"""Return a student's attendance for one month."""
+	from calendar import monthrange
+	from erpnext.setup.doctype.holiday_list.holiday_list import is_holiday
+	from education.education.doctype.student_attendance.student_attendance import get_holiday_list
+
+	month = int(month)
+	year = int(year)
+	if month < 1 or month > 12:
+		frappe.throw(_("Invalid month"))
+	start_date = getdate(f"{year}-{month:02d}-01")
+	end_date = getdate(f"{year}-{month:02d}-{monthrange(year, month)[1]}")
+	response = get_student_attendance_history(student, student_group, start_date, end_date)
+	non_working_dates = []
+	holiday_warning = ""
+	try:
+		holiday_list = get_holiday_list()
+		cursor = start_date
+		while cursor <= end_date:
+			if is_holiday(holiday_list, cursor):
+				non_working_dates.append(cstr(cursor))
+			cursor = add_days(cursor, 1)
+	except Exception as exc:
+		holiday_warning = cstr(exc)
+		non_working_dates = []
+	response["non_working_dates"] = non_working_dates
+	response["holiday_warning"] = holiday_warning
+	return response
+
+
+@frappe.whitelist()
+def save_student_month_attendance(student, student_group, month, year, records):
+	"""Create/update/clear Student Attendance rows for one student month."""
+	from calendar import monthrange
+
+	if not frappe.has_permission("Student Attendance", "create") and not frappe.has_permission(
+		"Student Attendance", "write"
+	):
+		frappe.throw(_("Not permitted to save student attendance"), frappe.PermissionError)
+
+	_ensure_student_read_permission(student)
+	_ensure_student_group_read_permission(student_group)
+	if not _student_belongs_to_group(student, student_group):
+		frappe.throw(_("Student does not belong to the selected Student Group"))
+
+	month = int(month)
+	year = int(year)
+	if month < 1 or month > 12:
+		frappe.throw(_("Invalid month"))
+	start_date = getdate(f"{year}-{month:02d}-01")
+	end_date = getdate(f"{year}-{month:02d}-{monthrange(year, month)[1]}")
+	records = _school_calendar_json(records, []) or []
+	if len(records) > 31:
+		frappe.throw(_("Too many attendance records"))
+
+	student_name = frappe.db.get_value("Student", student, "student_name")
+	saved = []
+	cleared = []
+	for row in records:
+		attendance_date = _attendance_date(row.get("date"))
+		if attendance_date < start_date or attendance_date > end_date:
+			frappe.throw(_("Attendance date {0} is outside the selected month").format(attendance_date))
+		status = _validate_attendance_status(row.get("status"))
+		existing_name = frappe.db.exists(
+			"Student Attendance",
+			{
+				"student": student,
+				"student_group": student_group,
+				"date": attendance_date,
+				"docstatus": ["!=", 2],
+			},
+		)
+		if not status:
+			if existing_name:
+				doc = frappe.get_doc("Student Attendance", existing_name)
+				if not (doc.has_permission("cancel") or doc.has_permission("delete")):
+					frappe.throw(_("Not permitted to clear attendance for {0}").format(attendance_date))
+				if doc.docstatus == 1:
+					doc.cancel()
+				if doc.has_permission("delete"):
+					frappe.delete_doc("Student Attendance", doc.name)
+				cleared.append(cstr(attendance_date))
+			continue
+
+		if existing_name:
+			doc = frappe.get_doc("Student Attendance", existing_name)
+			if not doc.has_permission("write"):
+				frappe.throw(_("Not permitted to update attendance for {0}").format(attendance_date))
+			doc.status = status
+			doc.save()
+		else:
+			if not frappe.has_permission("Student Attendance", "create"):
+				frappe.throw(_("Not permitted to create attendance for {0}").format(attendance_date))
+			doc = frappe.new_doc("Student Attendance")
+			doc.student = student
+			doc.student_name = student_name
+			doc.student_group = student_group
+			doc.date = attendance_date
+			doc.status = status
+			doc.insert()
+			doc.submit()
+		saved.append({"date": attendance_date, "status": status, "name": doc.name})
+
+	return {
+		"saved": saved,
+		"cleared": cleared,
+		"month": month,
+		"year": year,
+	}
