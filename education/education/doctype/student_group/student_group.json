@@ -18,6 +18,8 @@
   "batch",
   "student_category",
   "course",
+  "start_date",
+  "end_date",
   "disabled",
   "section_break_6",
   "get_students",
@@ -89,6 +91,16 @@
    "in_standard_filter": 1,
    "label": "Course",
    "options": "Course"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date"
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date"
   },
   {
    "default": "0",

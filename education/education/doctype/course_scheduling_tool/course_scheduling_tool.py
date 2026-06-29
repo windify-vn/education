@@ -7,7 +7,7 @@ import calendar
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import add_days, getdate
+from frappe.utils import add_days, cint, getdate, to_timedelta
 
 from education.education.utils import OverlapError
 
@@ -116,5 +116,8 @@ class CourseSchedulingTool(Document):
 		course_schedule.schedule_date = date
 		course_schedule.from_time = self.from_time
 		course_schedule.to_time = self.to_time
+		course_schedule.duration = cint(
+			(to_timedelta(self.to_time) - to_timedelta(self.from_time)).total_seconds() / 60
+		)
 		course_schedule.class_schedule_color = self.class_schedule_color
 		return course_schedule
