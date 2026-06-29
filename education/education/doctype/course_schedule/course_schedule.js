@@ -13,6 +13,7 @@ frappe.ui.form.on('Course Schedule', {
     frm.instructors = []
     frm.course_schedule_has_attendance = null
     frm._course_schedule_original_topic = null
+    frm._create_recurring_schedule = 0
 
     if (!frm._course_schedule_original_savetrash) {
       frm._course_schedule_original_savetrash = frm.savetrash.bind(frm)
@@ -79,6 +80,7 @@ frappe.ui.form.on('Course Schedule', {
 
   refresh(frm) {
     frm.toggle_display('naming_series', false)
+    frm.events.setup_recurring_schedule_toggle(frm)
 
     if (!frm.doc.__islocal) {
       frm.add_custom_button(__('Mark Attendance'), () => {
@@ -125,15 +127,12 @@ frappe.ui.form.on('Course Schedule', {
     frm.events.calculate_end_time(frm)
   },
 
-  create_recurring_schedule(frm) {
-    frm.events.toggle_recurring_schedule_fields(frm)
-  },
-
   topic(frm) {
     frm.events.validate_topic_change(frm, true)
   },
 
   validate(frm) {
+    frm.events.sync_recurring_schedule_flag(frm)
     frm.events.validate_topic_change(frm)
   },
 
@@ -193,10 +192,72 @@ frappe.ui.form.on('Course Schedule', {
     frm.refresh_field('instructor')
   },
 
+  setup_recurring_schedule_toggle(frm) {
+    if (!frm.doc.__islocal) {
+      frm._create_recurring_schedule = 0
+      frm.doc.create_recurring_schedule = 0
+      if (frm.$recurring_schedule_toggle) {
+        frm.$recurring_schedule_toggle.hide()
+      }
+      return
+    }
+
+    const $anchor = frm.fields_dict.class_schedule_color
+      && frm.fields_dict.class_schedule_color.$wrapper
+    if (!$anchor || !$anchor.length) return
+
+    if (
+      !frm.$recurring_schedule_toggle
+      || !frm.$recurring_schedule_toggle.length
+      || !document.body.contains(frm.$recurring_schedule_toggle[0])
+    ) {
+      frm.$recurring_schedule_toggle = $(`
+        <div class="frappe-control input-max-width course-recurring-schedule-toggle">
+          <div class="checkbox">
+            <label>
+              <span class="input-area">
+                <input type="checkbox" data-fieldname="create_recurring_schedule" />
+              </span>
+              <span class="label-area">${__('Create Recurring Schedule')}</span>
+            </label>
+          </div>
+        </div>
+      `)
+      $anchor.after(frm.$recurring_schedule_toggle)
+      frm.$recurring_schedule_toggle.on('change', 'input[type="checkbox"]', () => {
+        frm._create_recurring_schedule = frm.$recurring_schedule_toggle
+          .find('input[type="checkbox"]')
+          .is(':checked')
+          ? 1
+          : 0
+        frm.events.sync_recurring_schedule_flag(frm)
+        frm.events.toggle_recurring_schedule_fields(frm)
+      })
+    }
+
+    frm.$recurring_schedule_toggle.show()
+    frm.$recurring_schedule_toggle
+      .find('input[type="checkbox"]')
+      .prop('checked', Boolean(to_int(frm._create_recurring_schedule)))
+    frm.events.sync_recurring_schedule_flag(frm)
+  },
+
+  sync_recurring_schedule_flag(frm) {
+    frm.doc.create_recurring_schedule = frm.doc.__islocal
+      ? to_int(frm._create_recurring_schedule)
+      : 0
+  },
+
   apply_permission_ui(frm) {
     const can_create = can_model('create', frm.doctype)
     const can_write = can_model('write', frm.doctype)
     const can_delete = can_model('delete', frm.doctype)
+
+    if (frm.$recurring_schedule_toggle) {
+      frm.$recurring_schedule_toggle
+        .find('input[type="checkbox"]')
+        .prop('disabled', !can_create || !frm.doc.__islocal)
+    }
 
     if (frm.doc.__islocal && !can_create) {
       frm.disable_form()
@@ -286,12 +347,28 @@ frappe.ui.form.on('Course Schedule', {
   },
 
   toggle_recurring_schedule_fields(frm) {
+    const is_recurring = frm.doc.__islocal && to_int(frm._create_recurring_schedule)
+    frm.toggle_display('schedule_date', !is_recurring)
+    frm.toggle_display('start_date', is_recurring)
+    frm.toggle_display('end_date', is_recurring)
+    frm.toggle_display('weekday_configuration_section', is_recurring)
+    COURSE_SCHEDULE_WEEKDAYS.forEach((fieldname) => {
+      frm.toggle_display(fieldname, is_recurring)
+    })
+
     if (!frm.doc.__islocal) {
+      frm.toggle_display('schedule_date', true)
+      frm.toggle_display('start_date', false)
+      frm.toggle_display('end_date', false)
+      frm.toggle_display('weekday_configuration_section', false)
+      COURSE_SCHEDULE_WEEKDAYS.forEach((fieldname) => {
+        frm.toggle_display(fieldname, false)
+      })
       frm.events.show_saved_topic_fields(frm)
       return
     }
 
-    const show_topic = !to_int(frm.doc.create_recurring_schedule)
+    const show_topic = !is_recurring
     frm.toggle_display('topic', show_topic)
     frm.toggle_display('topic_name', show_topic)
   },

@@ -117,13 +117,18 @@
 }
 
 .school-view-select {
+	appearance: none;
 	height: 36px;
 	max-width: 140px;
-	padding: 0 32px 0 12px;
+	padding: 0 44px 0 12px;
 	border: 1px solid var(--school-border);
 	border-radius: 18px;
-	background: var(--school-surface);
+	background-color: var(--school-surface);
+	background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='%235f6368' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
 	color: var(--school-text);
+	background-position: right 14px center;
+	background-size: 16px 16px;
 }
 
 .school-calendar-shell {
@@ -174,13 +179,14 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
+	flex: 0 0 24px;
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
 	background: var(--school-primary);
 	color: #ffffff;
 	font-size: 20px;
-	line-height: 24px;
+	line-height: 1;
 }
 
 .school-mini-calendar {
@@ -335,8 +341,18 @@
 }
 
 .school-section-caret {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
 	transition: transform 120ms ease;
 	color: var(--school-muted);
+}
+
+.school-section-caret svg {
+	width: 16px;
+	height: 16px;
 }
 
 .school-source-list,
@@ -377,12 +393,18 @@
 }
 
 .school-resource-row {
-	align-items: flex-start;
+	align-items: center;
 	min-height: 36px;
 }
 
+.school-resource-row input {
+	align-self: center;
+	flex: 0 0 16px;
+	margin: 0;
+}
+
 .school-resource-row .school-source-dot {
-	margin-top: 5px;
+	align-self: center;
 }
 
 .school-resource-row .school-source-label {

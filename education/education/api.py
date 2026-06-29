@@ -304,6 +304,46 @@ def get_course_schedule_events(start, end, filters=None):
 	return data
 
 
+SCHOOL_CALENDAR_FALLBACK_LANGUAGE = "vi"
+SCHOOL_CALENDAR_SUPPORTED_LANGUAGES = {"en", "vi"}
+SCHOOL_CALENDAR_VI_MESSAGES = {
+	"Course": "Khóa học",
+	"Course Schedule": "Lịch dạy",
+	"Course Schedule must start and end on the same date": "Lịch dạy phải bắt đầu và kết thúc trong cùng một ngày",
+	"End date must be after start date": "Thời gian kết thúc phải sau thời gian bắt đầu",
+	"Missing calendar date range": "Thiếu khoảng thời gian của lịch",
+	"My Events": "Sự kiện của tôi",
+	"Not permitted to create course schedules": "Không có quyền tạo lịch dạy",
+	"Not permitted to create events": "Không có quyền tạo sự kiện",
+	"Not permitted to delete this event": "Không có quyền xóa sự kiện này",
+	"Not permitted to read this event": "Không có quyền xem sự kiện này",
+	"Not permitted to update this event": "Không có quyền cập nhật sự kiện này",
+	"Room": "Phòng",
+	"Student Group": "Lớp học",
+	"Title is required": "Tiêu đề là bắt buộc",
+	"Untitled Event": "Sự kiện chưa có tiêu đề",
+	"{0} is required": "{0} là bắt buộc",
+}
+
+
+def _school_calendar_language():
+	language = getattr(frappe.local, "lang", None) or frappe.db.get_value("User", frappe.session.user, "language")
+	language = cstr(language or SCHOOL_CALENDAR_FALLBACK_LANGUAGE).replace("_", "-").lower().split("-")[0]
+	return language if language in SCHOOL_CALENDAR_SUPPORTED_LANGUAGES else SCHOOL_CALENDAR_FALLBACK_LANGUAGE
+
+
+def _school_calendar_t(message):
+	if _school_calendar_language() == "en":
+		return _(message)
+
+	if cstr(getattr(frappe.local, "lang", None)).replace("_", "-").lower().split("-")[0] == "vi":
+		translated = _(message)
+		if translated and translated != message:
+			return translated
+
+	return SCHOOL_CALENDAR_VI_MESSAGES.get(message, message)
+
+
 def _school_calendar_json(value, fallback=None):
 	if value in (None, ""):
 		return fallback
@@ -318,7 +358,7 @@ def _school_calendar_source_enabled(calendars, source):
 
 def _school_calendar_date(value):
 	if not value:
-		frappe.throw(_("Missing calendar date range"))
+		frappe.throw(_school_calendar_t("Missing calendar date range"))
 	return get_datetime(value)
 
 
@@ -504,7 +544,7 @@ def get_calendar_sources():
 		sources.append(
 			{
 				"id": "course_schedule",
-				"label": _("Course Schedule"),
+				"label": _school_calendar_t("Course Schedule"),
 				"doctype": "Course Schedule",
 				"color": "#1a73e8",
 				"checked": 1,
@@ -517,7 +557,7 @@ def get_calendar_sources():
 		sources.append(
 			{
 				"id": "event",
-				"label": _("My Events"),
+				"label": _school_calendar_t("My Events"),
 				"doctype": "Event",
 				"color": "#188038",
 				"checked": 1,
@@ -557,7 +597,7 @@ def get_calendar_events(start, end, calendars=None, search=None, view=None, reso
 	start_dt = _school_calendar_date(start)
 	end_dt = _school_calendar_date(end)
 	if end_dt < start_dt:
-		frappe.throw(_("End date must be after start date"))
+		frappe.throw(_school_calendar_t("End date must be after start date"))
 
 	calendars = _school_calendar_json(calendars, []) or []
 	resource_filters = set(_school_calendar_json(resource_filters, ["instructor", "teaching_assistant"]) or [])
@@ -594,7 +634,7 @@ def get_calendar_events(start, end, calendars=None, search=None, view=None, reso
 				continue
 			starts_on = get_datetime(f"{schedule.schedule_date} {schedule.from_time}")
 			ends_on = get_datetime(f"{schedule.schedule_date} {schedule.to_time}")
-			title = schedule.get("course") or _("Course Schedule")
+			title = schedule.get("course") or _school_calendar_t("Course Schedule")
 			subtitle = " · ".join(
 				filter(None, [schedule.get("student_group"), schedule.get("instructor_name"), schedule.get("room")])
 			)
@@ -667,7 +707,7 @@ def get_calendar_events(start, end, calendars=None, search=None, view=None, reso
 					"name": event.name,
 					"doctype": "Event",
 					"source": "event",
-					"title": event.get("subject") or _("Untitled Event"),
+					"title": event.get("subject") or _school_calendar_t("Untitled Event"),
 					"start": event_start,
 					"end": event_end,
 					"allDay": event.get("all_day"),
@@ -695,7 +735,7 @@ def get_calendar_event(name):
 	name = cstr(name).replace("event::", "")
 	doc = frappe.get_doc("Event", name)
 	if not doc.has_permission("read"):
-		frappe.throw(_("Not permitted to read this event"), frappe.PermissionError)
+		frappe.throw(_school_calendar_t("Not permitted to read this event"), frappe.PermissionError)
 
 	return {
 		"name": doc.name,
@@ -715,13 +755,13 @@ def _school_calendar_event_doc(data, doc=None):
 	data = _school_calendar_json(data, {}) or {}
 	subject = cstr(data.get("title") or data.get("subject")).strip()
 	if not subject:
-		frappe.throw(_("Title is required"))
+		frappe.throw(_school_calendar_t("Title is required"))
 
 	starts_on = _school_calendar_date(data.get("starts_on") or data.get("start"))
 	ends_on = data.get("ends_on") or data.get("end")
 	ends_on = get_datetime(ends_on) if ends_on else starts_on
 	if ends_on < starts_on:
-		frappe.throw(_("End date must be after start date"))
+		frappe.throw(_school_calendar_t("End date must be after start date"))
 	all_day = 1 if data.get("all_day") or data.get("allDay") else 0
 	ends_on = _school_calendar_normalize_all_day_end(starts_on, ends_on, all_day)
 
@@ -743,14 +783,15 @@ def _school_calendar_course_schedule_doc(data, doc=None):
 	starts_on = _school_calendar_date(data.get("starts_on") or data.get("start"))
 	ends_on = _school_calendar_date(data.get("ends_on") or data.get("end"))
 	if ends_on <= starts_on:
-		frappe.throw(_("End date must be after start date"))
+		frappe.throw(_school_calendar_t("End date must be after start date"))
 	if getdate(starts_on) != getdate(ends_on):
-		frappe.throw(_("Course Schedule must start and end on the same date"))
+		frappe.throw(_school_calendar_t("Course Schedule must start and end on the same date"))
 
 	required_fields = ["student_group", "room"]
 	for fieldname in required_fields:
 		if not data.get(fieldname):
-			frappe.throw(_("{0} is required").format(_(fieldname.replace("_", " ").title())))
+			field_label = _school_calendar_t(fieldname.replace("_", " ").title())
+			frappe.throw(_school_calendar_t("{0} is required").format(field_label))
 
 	doc = doc or frappe.new_doc("Course Schedule")
 	doc.student_group = data.get("student_group")
@@ -769,7 +810,7 @@ def _school_calendar_course_schedule_doc(data, doc=None):
 def create_calendar_event(data):
 	"""Create a core Event from the custom Academy Calendar page."""
 	if not frappe.has_permission("Event", "create"):
-		frappe.throw(_("Not permitted to create events"), frappe.PermissionError)
+		frappe.throw(_school_calendar_t("Not permitted to create events"), frappe.PermissionError)
 	doc = _school_calendar_event_doc(data)
 	doc.insert()
 	return {"name": doc.name}
@@ -779,7 +820,7 @@ def create_calendar_event(data):
 def create_course_schedule_event(data):
 	"""Create a Course Schedule from the custom Academy Calendar page."""
 	if not frappe.has_permission("Course Schedule", "create"):
-		frappe.throw(_("Not permitted to create course schedules"), frappe.PermissionError)
+		frappe.throw(_school_calendar_t("Not permitted to create course schedules"), frappe.PermissionError)
 	doc = _school_calendar_course_schedule_doc(data)
 	doc.insert()
 	return {"name": doc.name}
@@ -791,7 +832,7 @@ def update_calendar_event(name, data):
 	name = cstr(name).replace("event::", "")
 	doc = frappe.get_doc("Event", name)
 	if not doc.has_permission("write"):
-		frappe.throw(_("Not permitted to update this event"), frappe.PermissionError)
+		frappe.throw(_school_calendar_t("Not permitted to update this event"), frappe.PermissionError)
 	doc = _school_calendar_event_doc(data, doc)
 	doc.save()
 	return {"name": doc.name}
@@ -803,7 +844,7 @@ def delete_calendar_event(name):
 	name = cstr(name).replace("event::", "")
 	doc = frappe.get_doc("Event", name)
 	if not doc.has_permission("delete"):
-		frappe.throw(_("Not permitted to delete this event"), frappe.PermissionError)
+		frappe.throw(_school_calendar_t("Not permitted to delete this event"), frappe.PermissionError)
 	frappe.delete_doc("Event", doc.name)
 	return {"name": doc.name}
 

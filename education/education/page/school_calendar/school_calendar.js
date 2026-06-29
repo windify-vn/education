@@ -1,3 +1,151 @@
+const SCHOOL_CALENDAR_FALLBACK_LANGUAGE = "vi";
+const SCHOOL_CALENDAR_SUPPORTED_LANGUAGES = new Set(["en", "vi"]);
+const SCHOOL_CALENDAR_VI_MESSAGES = {
+	"4 days": "4 ngày",
+	"Academy Calendar": "Lịch học viện",
+	"All day": "Cả ngày",
+	Amber: "Hổ phách",
+	Apply: "Áp dụng",
+	Assistant: "Trợ giảng",
+	Blue: "Xanh dương",
+	Calendar: "Lịch",
+	"Calendar library is not available.": "Không tải được thư viện lịch.",
+	"Calendar settings": "Cài đặt lịch",
+	Cancelled: "Đã hủy",
+	Cyan: "Xanh lơ",
+	"Clear resource filters": "Xóa bộ lọc nguồn lực",
+	Closed: "Đã đóng",
+	Color: "Màu",
+	"Compact event rows": "Thu gọn dòng sự kiện",
+	Completed: "Hoàn thành",
+	Continue: "Tiếp tục",
+	Course: "Khóa học",
+	"Course Schedule": "Lịch dạy",
+	"Course Schedule created": "Đã tạo lịch dạy",
+	"Course Schedule must start and end on the same date": "Lịch dạy phải bắt đầu và kết thúc trong cùng một ngày",
+	"Create": "Tạo mới",
+	"Create Course Schedule": "Tạo lịch dạy",
+	"Create event": "Tạo sự kiện",
+	Day: "Ngày",
+	Delete: "Xóa",
+	"Delete this event?": "Xóa sự kiện này?",
+	Description: "Mô tả",
+	Edit: "Chỉnh sửa",
+	"Edit event": "Chỉnh sửa sự kiện",
+	"End date must be after start date": "Thời gian kết thúc phải sau thời gian bắt đầu",
+	"Ends on": "Kết thúc",
+	Event: "Sự kiện",
+	"Event deleted": "Đã xóa sự kiện",
+	"Event saved": "Đã lưu sự kiện",
+	"Future Academy": "Future Academy",
+	Green: "Xanh lá",
+	Instructor: "Giảng viên",
+	Loading: "Đang tải",
+	Menu: "Menu",
+	"Missing calendar date range": "Thiếu khoảng thời gian của lịch",
+	Month: "Tháng",
+	"My Events": "Sự kiện của tôi",
+	"Next month": "Tháng sau",
+	Next: "Tiếp",
+	"No assistants in this range": "Không có trợ giảng trong khoảng này",
+	"No events to display": "Không có sự kiện để hiển thị",
+	"No instructors in this range": "Không có giảng viên trong khoảng này",
+	"No people found": "Không tìm thấy người phù hợp",
+	"Not permitted": "Không có quyền",
+	"Not permitted to create course schedules": "Không có quyền tạo lịch dạy",
+	"Not permitted to create events": "Không có quyền tạo sự kiện",
+	"Not permitted to delete this event": "Không có quyền xóa sự kiện này",
+	"Not permitted to read this event": "Không có quyền xem sự kiện này",
+	"Not permitted to update this event": "Không có quyền cập nhật sự kiện này",
+	Open: "Mở",
+	Orange: "Cam",
+	Pink: "Hồng",
+	Previous: "Trước",
+	"Previous month": "Tháng trước",
+	Private: "Riêng tư",
+	Public: "Công khai",
+	Purple: "Tím",
+	Red: "Đỏ",
+	Resource: "Nguồn lực",
+	Room: "Phòng",
+	Save: "Lưu",
+	Schedule: "Lịch biểu",
+	Search: "Tìm kiếm",
+	"Search for people": "Tìm người",
+	Settings: "Cài đặt",
+	"Show weekends": "Hiển thị cuối tuần",
+	"Starts on": "Bắt đầu",
+	Status: "Trạng thái",
+	"Student Group": "Lớp học",
+	Teal: "Xanh ngọc",
+	"This calendar view is not available.": "Chế độ xem lịch này không khả dụng.",
+	Title: "Tiêu đề",
+	"Title is required": "Tiêu đề là bắt buộc",
+	Today: "Hôm nay",
+	"Toggle sidebar": "Ẩn hiện thanh bên",
+	"Untitled Event": "Sự kiện chưa có tiêu đề",
+	Violet: "Tím violet",
+	Visibility: "Hiển thị",
+	Week: "Tuần",
+	Year: "Năm",
+	Yellow: "Vàng",
+	"You do not have permission to create calendar records.": "Bạn không có quyền tạo bản ghi lịch.",
+	"You do not have permission to create this calendar record.": "Bạn không có quyền tạo bản ghi lịch này.",
+	"{0} is required": "{0} là bắt buộc",
+	events: "sự kiện",
+};
+const SCHOOL_CALENDAR_VI_FULLCALENDAR_LOCALE = {
+	code: "vi",
+	week: {
+		dow: 1,
+		doy: 4,
+	},
+	buttonText: {
+		prev: "Trước",
+		next: "Tiếp",
+		today: "Hôm nay",
+		year: "Năm",
+		month: "Tháng",
+		week: "Tuần",
+		day: "Ngày",
+		list: "Lịch biểu",
+	},
+	weekText: "Tu",
+	allDayText: "Cả ngày",
+	moreLinkText(count) {
+		return `+ thêm ${count}`;
+	},
+	noEventsText: "Không có sự kiện để hiển thị",
+};
+
+function school_calendar_user_language_base() {
+	const language = (frappe.boot && (frappe.boot.lang || frappe.boot.user_language)) || SCHOOL_CALENDAR_FALLBACK_LANGUAGE;
+	return String(language).replace("_", "-").toLowerCase().split("-")[0];
+}
+
+function school_calendar_effective_language() {
+	const language = school_calendar_user_language_base();
+	return SCHOOL_CALENDAR_SUPPORTED_LANGUAGES.has(language) ? language : SCHOOL_CALENDAR_FALLBACK_LANGUAGE;
+}
+
+function school_calendar_t(message) {
+	const key = String(message || "");
+	const language = school_calendar_effective_language();
+
+	if (language === "en") {
+		return __(key);
+	}
+
+	if (school_calendar_user_language_base() === "vi") {
+		const translated = __(key);
+		if (translated && translated !== key) {
+			return translated;
+		}
+	}
+
+	return SCHOOL_CALENDAR_VI_MESSAGES[key] || key;
+}
+
 frappe.pages["school-calendar"].on_page_load = function (wrapper) {
 	if (wrapper.school_calendar_page) {
 		wrapper.school_calendar_page.destroy();
@@ -5,7 +153,7 @@ frappe.pages["school-calendar"].on_page_load = function (wrapper) {
 
 	frappe.ui.make_app_page({
 		parent: wrapper,
-		title: __("Future Academy"),
+		title: school_calendar_t("Future Academy"),
 		single_column: true,
 	});
 
@@ -75,28 +223,28 @@ class SchoolCalendarPage {
 			<div class="school-calendar-page">
 				<div class="school-calendar-topbar">
 					<div class="school-calendar-topbar-left">
-						<button class="school-icon-btn" data-action="toggle-sidebar" aria-label="${__("Toggle sidebar")}"></button>
-						<div class="school-calendar-title">${__("Calendar")}</div>
-						<button class="school-text-btn" data-action="today">${__("Today")}</button>
+						<button class="school-icon-btn" data-action="toggle-sidebar" aria-label="${this.t("Toggle sidebar")}"></button>
+						<div class="school-calendar-title">${this.t("Calendar")}</div>
+						<button class="school-text-btn" data-action="today">${this.t("Today")}</button>
 						<div class="school-nav-group">
-							<button class="school-icon-btn" data-action="prev" aria-label="${__("Previous")}"></button>
-							<button class="school-icon-btn" data-action="next" aria-label="${__("Next")}"></button>
+							<button class="school-icon-btn" data-action="prev" aria-label="${this.t("Previous")}"></button>
+							<button class="school-icon-btn" data-action="next" aria-label="${this.t("Next")}"></button>
 						</div>
 						<div class="school-calendar-range-label"></div>
 					</div>
 					<div class="school-calendar-topbar-right">
 						<div class="school-search">
 							<span class="school-search-icon"></span>
-							<input type="search" data-field="search" placeholder="${__("Search")}" />
+							<input type="search" data-field="search" placeholder="${this.t("Search")}" />
 						</div>
-						<button class="school-icon-btn" data-action="settings" aria-label="${__("Settings")}"></button>
+						<button class="school-icon-btn" data-action="settings" aria-label="${this.t("Settings")}"></button>
 						<select class="school-view-select" data-field="view">
-							<option value="day">${__("Day")}</option>
-							<option value="week">${__("Week")}</option>
-							<option value="month" selected>${__("Month")}</option>
-							<option value="year">${__("Year")}</option>
-							<option value="schedule">${__("Schedule")}</option>
-							<option value="four_days">${__("4 days")}</option>
+							<option value="day">${this.t("Day")}</option>
+							<option value="week">${this.t("Week")}</option>
+							<option value="month" selected>${this.t("Month")}</option>
+							<option value="year">${this.t("Year")}</option>
+							<option value="schedule">${this.t("Schedule")}</option>
+							<option value="four_days">${this.t("4 days")}</option>
 						</select>
 					</div>
 				</div>
@@ -104,31 +252,31 @@ class SchoolCalendarPage {
 					<aside class="school-calendar-sidebar">
 						<button class="school-create-btn" data-action="create">
 							<span class="school-create-plus">+</span>
-							<span>${__("Create")}</span>
+							<span>${this.t("Create")}</span>
 						</button>
 						<div class="school-mini-calendar">
 							<div class="school-mini-head">
-								<button class="school-icon-btn school-mini-prev" data-action="mini-prev" aria-label="${__("Previous month")}"></button>
+								<button class="school-icon-btn school-mini-prev" data-action="mini-prev" aria-label="${this.t("Previous month")}"></button>
 								<div class="school-mini-title"></div>
-								<button class="school-icon-btn school-mini-next" data-action="mini-next" aria-label="${__("Next month")}"></button>
+								<button class="school-icon-btn school-mini-next" data-action="mini-next" aria-label="${this.t("Next month")}"></button>
 							</div>
 							<div class="school-mini-weekdays"></div>
 							<div class="school-mini-grid"></div>
 						</div>
 						<div class="school-sidebar-section">
 							<button class="school-section-toggle" data-section="resources">
-								<span>${__("Resource")}</span>
-								<span class="school-section-caret">v</span>
+								<span>${this.t("Resource")}</span>
+								<span class="school-section-caret"></span>
 							</button>
 							<div class="school-resource-panel">
-								<label class="school-sidebar-label">${__("Search for people")}</label>
+								<label class="school-sidebar-label">${this.t("Search for people")}</label>
 								<div class="school-resource-search">
 									<span class="school-resource-search-icon"></span>
-									<input class="school-people-input" type="search" data-field="people" placeholder="${__("Search for people")}" />
+									<input class="school-people-input" type="search" data-field="people" placeholder="${this.t("Search for people")}" />
 								</div>
 								<div class="school-resource-tabs">
-									<button class="school-resource-tab is-active" type="button" data-resource-tab="instructor">${__("Instructor")}</button>
-									<button class="school-resource-tab" type="button" data-resource-tab="teaching_assistant">${__("Assistant")}</button>
+									<button class="school-resource-tab is-active" type="button" data-resource-tab="instructor">${this.t("Instructor")}</button>
+									<button class="school-resource-tab" type="button" data-resource-tab="teaching_assistant">${this.t("Assistant")}</button>
 								</div>
 								<div class="school-source-list" data-resource-list="resources"></div>
 							</div>
@@ -159,15 +307,71 @@ class SchoolCalendarPage {
 		return frappe.utils.escape_html(value || "");
 	}
 
+	t(message) {
+		return school_calendar_t(message);
+	}
+
+	get_effective_language() {
+		return school_calendar_effective_language();
+	}
+
+	get_calendar_locale() {
+		return this.get_effective_language() === "en" ? "en" : SCHOOL_CALENDAR_FALLBACK_LANGUAGE;
+	}
+
+	get_date_locale() {
+		return this.get_calendar_locale() === "en" ? "en" : "vi-VN";
+	}
+
+	get_weekday_labels() {
+		if (this.get_calendar_locale() === "vi") {
+			return ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+		}
+		return ["M", "T", "W", "T", "F", "S", "S"];
+	}
+
+	get_color_options() {
+		return [
+			{ value: "blue", label: this.t("Blue") },
+			{ value: "green", label: this.t("Green") },
+			{ value: "red", label: this.t("Red") },
+			{ value: "orange", label: this.t("Orange") },
+			{ value: "yellow", label: this.t("Yellow") },
+			{ value: "teal", label: this.t("Teal") },
+			{ value: "violet", label: this.t("Violet") },
+			{ value: "cyan", label: this.t("Cyan") },
+			{ value: "amber", label: this.t("Amber") },
+			{ value: "pink", label: this.t("Pink") },
+			{ value: "purple", label: this.t("Purple") },
+		];
+	}
+
+	get_visibility_options() {
+		return [
+			{ value: "Private", label: this.t("Private") },
+			{ value: "Public", label: this.t("Public") },
+		];
+	}
+
+	get_status_options() {
+		return [
+			{ value: "Open", label: this.t("Open") },
+			{ value: "Completed", label: this.t("Completed") },
+			{ value: "Closed", label: this.t("Closed") },
+			{ value: "Cancelled", label: this.t("Cancelled") },
+		];
+	}
+
 	set_icons() {
-		this.$page.find('[data-action="toggle-sidebar"]').html(this.icon("menu", "Menu"));
+		this.$page.find('[data-action="toggle-sidebar"]').html(this.icon("menu", this.t("Menu")));
 		this.$page.find('[data-action="prev"]').html(this.icon("left", "<"));
 		this.$page.find('[data-action="next"]').html(this.icon("right", ">"));
 		this.$page.find('[data-action="mini-prev"]').html(this.icon("left", "<"));
 		this.$page.find('[data-action="mini-next"]').html(this.icon("right", ">"));
-		this.$page.find('[data-action="settings"]').html(this.icon("setting-gear", "Settings"));
-		this.$page.find(".school-search-icon").html(this.icon("search", "Search"));
-		this.$page.find(".school-resource-search-icon").html(this.icon("search", "Search"));
+		this.$page.find('[data-action="settings"]').html(this.icon("setting-gear", this.t("Settings")));
+		this.$page.find(".school-search-icon").html(this.icon("search", this.t("Search")));
+		this.$page.find(".school-resource-search-icon").html(this.icon("search", this.t("Search")));
+		this.$page.find(".school-section-caret").html(this.icon("down", "v"));
 	}
 
 	load_local_state() {
@@ -366,17 +570,18 @@ class SchoolCalendarPage {
 
 	make_calendar() {
 		if (!frappe.FullCalendar) {
-			frappe.msgprint(__("Calendar library is not available."));
+			frappe.msgprint(this.t("Calendar library is not available."));
 			return;
 		}
 
 		this.calendar = new frappe.FullCalendar(this.$calendar_node[0], {
 			plugins: frappe.FullCalendar.Plugins,
+			locales: [SCHOOL_CALENDAR_VI_FULLCALENDAR_LOCALE],
 			initialDate: this.current_date,
 			initialView: this.get_initial_view(),
 			headerToolbar: false,
 			height: "100%",
-			locale: frappe.boot.lang,
+			locale: this.get_calendar_locale(),
 			firstDay: 1,
 			weekends: Boolean(this.settings.weekends),
 			nowIndicator: true,
@@ -460,17 +665,17 @@ class SchoolCalendarPage {
 		if (this.resource_filters.size) {
 			$(`
 				<button class="school-clear-resource-filters" type="button" data-action="clear-resource-filters">
-					${__("Clear resource filters")}
+					${this.t("Clear resource filters")}
 				</button>
 			`).appendTo($list);
 		}
 
 		if (!resources.length) {
 			const empty_message = this.resource_search_text.trim()
-				? __("No people found")
+				? this.t("No people found")
 				: this.active_resource_tab === "instructor"
-				? __("No instructors in this range")
-				: __("No assistants in this range");
+				? this.t("No instructors in this range")
+				: this.t("No assistants in this range");
 			$(`<div class="school-muted-block">${this.escape(empty_message)}</div>`).appendTo($list);
 			return;
 		}
@@ -484,7 +689,7 @@ class SchoolCalendarPage {
 					<span class="school-source-dot" style="--source-color: ${this.escape(resource.color)}"></span>
 					<span class="school-source-label">
 						<span>${this.escape(resource.label)}</span>
-						<small>${this.escape(resource.name)} · ${this.escape(resource.count)} ${__("events")}</small>
+						<small>${this.escape(resource.name)} · ${this.escape(resource.count)} ${this.t("events")}</small>
 					</span>
 				</label>
 			`).appendTo($list);
@@ -543,7 +748,7 @@ class SchoolCalendarPage {
 		this.$page.find(".school-mini-title").text(this.format_month_year(date));
 		this.$page
 			.find(".school-mini-weekdays")
-			.html(["M", "T", "W", "T", "F", "S", "S"].map((day) => `<span>${day}</span>`).join(""));
+			.html(this.get_weekday_labels().map((day) => `<span>${day}</span>`).join(""));
 
 		let html = "";
 		for (let index = 0; index < 42; index++) {
@@ -584,7 +789,7 @@ class SchoolCalendarPage {
 				this.$page.find('[data-field="view"]').val("month");
 				this.save_local_state();
 				this.calendar.changeView(this.view_map.month, this.current_date);
-				frappe.show_alert({ message: __("This calendar view is not available."), indicator: "orange" });
+				frappe.show_alert({ message: this.t("This calendar view is not available."), indicator: "orange" });
 			}
 		}
 		this.update_range_label();
@@ -647,7 +852,7 @@ class SchoolCalendarPage {
 		const start = new Date(year, 0, 1);
 		const end = new Date(year + 1, 0, 1);
 		this.load_calendar_resources(start, end);
-		this.$year_node.html(`<div class="school-year-loading">${__("Loading")}</div>`);
+		this.$year_node.html(`<div class="school-year-loading">${this.t("Loading")}</div>`);
 
 		frappe.call({
 			method: "education.education.api.get_calendar_events",
@@ -702,7 +907,7 @@ class SchoolCalendarPage {
 				.filter(Boolean)
 				.join(" ");
 			cells += `
-				<button class="${classes}" data-year-date="${key}" title="${count ? count + " " + __("events") : ""}">
+				<button class="${classes}" data-year-date="${key}" title="${count ? count + " " + this.t("events") : ""}">
 					<span>${day.getDate()}</span>
 					${count ? `<i>${count > 9 ? "9+" : count}</i>` : ""}
 				</button>`;
@@ -713,7 +918,7 @@ class SchoolCalendarPage {
 				<button class="school-year-month-title" data-year-month="${year}-${String(month + 1).padStart(2, "0")}-01">
 					${this.format_month_name(first)}
 				</button>
-				<div class="school-year-weekdays">${["M", "T", "W", "T", "F", "S", "S"]
+				<div class="school-year-weekdays">${this.get_weekday_labels()
 					.map((day) => `<span>${day}</span>`)
 					.join("")}</div>
 				<div class="school-year-days">${cells}</div>
@@ -761,7 +966,7 @@ class SchoolCalendarPage {
 
 	open_create_dialog(options = {}) {
 		if (!this.can_create_event()) {
-			frappe.msgprint(__("You do not have permission to create calendar records."));
+			frappe.msgprint(this.t("You do not have permission to create calendar records."));
 			return;
 		}
 		const creatable_sources = this.sources.filter((source) => source.can_create);
@@ -770,26 +975,25 @@ class SchoolCalendarPage {
 			return;
 		}
 
-		const labels = creatable_sources.map((source) => source.label);
-		const label_to_source = {};
-		creatable_sources.forEach((source) => {
-			label_to_source[source.label] = source.id;
-		});
+		const source_options = creatable_sources.map((source) => ({
+			value: source.id,
+			label: this.t(source.label),
+		}));
 		const dialog = new frappe.ui.Dialog({
-			title: __("Create"),
+			title: this.t("Create"),
 			fields: [
 				{
 					fieldtype: "Select",
 					fieldname: "calendar_source",
-					label: __("Calendar"),
-					options: labels.join("\n"),
-					default: labels[0],
+					label: this.t("Calendar"),
+					options: source_options,
+					default: source_options[0].value,
 				},
 			],
-			primary_action_label: __("Continue"),
+			primary_action_label: this.t("Continue"),
 			primary_action: (values) => {
 				dialog.hide();
-				this.open_create_dialog_for_source(label_to_source[values.calendar_source], options);
+				this.open_create_dialog_for_source(values.calendar_source, options);
 			},
 		});
 		dialog.show();
@@ -797,12 +1001,12 @@ class SchoolCalendarPage {
 
 	open_settings_dialog() {
 		const dialog = new frappe.ui.Dialog({
-			title: __("Calendar settings"),
+			title: this.t("Calendar settings"),
 			fields: [
-				{ fieldtype: "Check", fieldname: "weekends", label: __("Show weekends") },
-				{ fieldtype: "Check", fieldname: "compact_events", label: __("Compact event rows") },
+				{ fieldtype: "Check", fieldname: "weekends", label: this.t("Show weekends") },
+				{ fieldtype: "Check", fieldname: "compact_events", label: this.t("Compact event rows") },
 			],
-			primary_action_label: __("Apply"),
+			primary_action_label: this.t("Apply"),
 			primary_action: (values) => {
 				this.settings.weekends = Boolean(values.weekends);
 				this.settings.compact_events = Boolean(values.compact_events);
@@ -827,7 +1031,7 @@ class SchoolCalendarPage {
 
 	open_create_dialog_for_source(source, options = {}) {
 		if (!this.can_create_source(source)) {
-			frappe.msgprint(__("You do not have permission to create this calendar record."));
+			frappe.msgprint(this.t("You do not have permission to create this calendar record."));
 			return;
 		}
 
@@ -854,35 +1058,35 @@ class SchoolCalendarPage {
 		const start = options.start || new Date();
 		const end = options.end || this.add_hours(start, 1);
 		const dialog = new frappe.ui.Dialog({
-			title: __("Create Course Schedule"),
+			title: this.t("Create Course Schedule"),
 			fields: [
 				{
 					fieldtype: "Link",
 					fieldname: "student_group",
-					label: __("Student Group"),
+					label: this.t("Student Group"),
 					options: "Student Group",
 					reqd: 1,
 				},
-				{ fieldtype: "Link", fieldname: "course", label: __("Course"), options: "Course", reqd: 1 },
+				{ fieldtype: "Link", fieldname: "course", label: this.t("Course"), options: "Course", reqd: 1 },
 				{
 					fieldtype: "Link",
 					fieldname: "instructor",
-					label: __("Instructor"),
+					label: this.t("Instructor"),
 					options: "Instructor",
 					reqd: 1,
 				},
-				{ fieldtype: "Link", fieldname: "room", label: __("Room"), options: "Room", reqd: 1 },
-				{ fieldtype: "Datetime", fieldname: "starts_on", label: __("Starts on"), reqd: 1 },
-				{ fieldtype: "Datetime", fieldname: "ends_on", label: __("Ends on"), reqd: 1 },
+				{ fieldtype: "Link", fieldname: "room", label: this.t("Room"), options: "Room", reqd: 1 },
+				{ fieldtype: "Datetime", fieldname: "starts_on", label: this.t("Starts on"), reqd: 1 },
+				{ fieldtype: "Datetime", fieldname: "ends_on", label: this.t("Ends on"), reqd: 1 },
 				{
 					fieldtype: "Select",
 					fieldname: "class_schedule_color",
-					label: __("Color"),
-					options: "blue\ngreen\nred\norange\nyellow\nteal\nviolet\ncyan\namber\npink\npurple",
+					label: this.t("Color"),
+					options: this.get_color_options(),
 					default: "blue",
 				},
 			],
-			primary_action_label: __("Save"),
+			primary_action_label: this.t("Save"),
 			primary_action: (values) => {
 				frappe.call({
 					method: "education.education.api.create_course_schedule_event",
@@ -890,7 +1094,7 @@ class SchoolCalendarPage {
 					callback: (response) => {
 						dialog.hide();
 						this.refetch_events();
-						frappe.show_alert({ message: __("Course Schedule created"), indicator: "green" });
+						frappe.show_alert({ message: this.t("Course Schedule created"), indicator: "green" });
 						if (response.message && response.message.name) {
 							frappe.set_route("Form", "Course Schedule", response.message.name);
 						}
@@ -910,30 +1114,30 @@ class SchoolCalendarPage {
 		const start = options.start || new Date();
 		const end = options.end || this.add_hours(start, 1);
 		const dialog = new frappe.ui.Dialog({
-			title: options.name ? __("Edit event") : __("Create event"),
+			title: options.name ? this.t("Edit event") : this.t("Create event"),
 			fields: [
-				{ fieldtype: "Data", fieldname: "title", label: __("Title"), reqd: 1 },
-				{ fieldtype: "Datetime", fieldname: "starts_on", label: __("Starts on"), reqd: 1 },
-				{ fieldtype: "Datetime", fieldname: "ends_on", label: __("Ends on"), reqd: 1 },
-				{ fieldtype: "Check", fieldname: "all_day", label: __("All day") },
+				{ fieldtype: "Data", fieldname: "title", label: this.t("Title"), reqd: 1 },
+				{ fieldtype: "Datetime", fieldname: "starts_on", label: this.t("Starts on"), reqd: 1 },
+				{ fieldtype: "Datetime", fieldname: "ends_on", label: this.t("Ends on"), reqd: 1 },
+				{ fieldtype: "Check", fieldname: "all_day", label: this.t("All day") },
 				{
 					fieldtype: "Select",
 					fieldname: "visibility",
-					label: __("Visibility"),
-					options: "Private\nPublic",
+					label: this.t("Visibility"),
+					options: this.get_visibility_options(),
 					default: "Private",
 				},
-				{ fieldtype: "Color", fieldname: "color", label: __("Color"), default: "#188038" },
+				{ fieldtype: "Color", fieldname: "color", label: this.t("Color"), default: "#188038" },
 				{
 					fieldtype: "Select",
 					fieldname: "status",
-					label: __("Status"),
-					options: "Open\nCompleted\nClosed\nCancelled",
+					label: this.t("Status"),
+					options: this.get_status_options(),
 					default: "Open",
 				},
-				{ fieldtype: "Small Text", fieldname: "description", label: __("Description") },
+				{ fieldtype: "Small Text", fieldname: "description", label: this.t("Description") },
 			],
-			primary_action_label: __("Save"),
+			primary_action_label: this.t("Save"),
 			primary_action: (values) => {
 				const method = options.name
 					? "education.education.api.update_calendar_event"
@@ -945,7 +1149,7 @@ class SchoolCalendarPage {
 					callback: () => {
 						dialog.hide();
 						this.refetch_events();
-						frappe.show_alert({ message: __("Event saved"), indicator: "green" });
+						frappe.show_alert({ message: this.t("Event saved"), indicator: "green" });
 					},
 				});
 			},
@@ -988,18 +1192,18 @@ class SchoolCalendarPage {
 		this.close_popover();
 		const props = event.extendedProps || {};
 		const is_read_only = Boolean(props.read_only);
-		const can_write = props.can_write === undefined ? !is_read_only : Boolean(props.can_write)
-		const can_delete_record = props.can_delete === undefined ? !is_read_only : Boolean(props.can_delete)
-		const can_edit = can_write
-		const can_delete = props.source === "event" && can_delete_record
-		const title = this.escape(event.title || __("Untitled Event"));
+		const can_write = props.can_write === undefined ? !is_read_only : Boolean(props.can_write);
+		const can_delete_record = props.can_delete === undefined ? !is_read_only : Boolean(props.can_delete);
+		const can_edit = can_write;
+		const can_delete = props.source === "event" && can_delete_record;
+		const title = this.escape(event.title || this.t("Untitled Event"));
 		const subtitle = this.escape(props.subtitle || this.format_event_time(event));
 		const description = props.description ? this.escape(props.description) : "";
 		const edit_action = can_edit
-			? `<button class="school-icon-btn" data-popover-action="edit">${this.icon("edit", "Edit")}</button>`
+			? `<button class="school-icon-btn" data-popover-action="edit">${this.icon("edit", this.t("Edit"))}</button>`
 			: "";
 		const delete_action = can_delete
-			? `<button class="school-icon-btn" data-popover-action="delete">${this.icon("delete", "Delete")}</button>`
+			? `<button class="school-icon-btn" data-popover-action="delete">${this.icon("delete", this.t("Delete"))}</button>`
 			: "";
 
 		this.$popover = $(`
@@ -1007,7 +1211,7 @@ class SchoolCalendarPage {
 				<div class="school-popover-color" style="--event-color: ${this.escape(event.backgroundColor || event.borderColor || "#1a73e8")}"></div>
 				<div class="school-popover-body">
 					<div class="school-popover-actions">
-						<button class="school-icon-btn" data-popover-action="open">${this.icon("arrow-right", "Open")}</button>
+						<button class="school-icon-btn" data-popover-action="open">${this.icon("arrow-right", this.t("Open"))}</button>
 						${edit_action}
 						${delete_action}
 					</div>
@@ -1058,14 +1262,14 @@ class SchoolCalendarPage {
 	}
 
 	confirm_delete(name) {
-		frappe.confirm(__("Delete this event?"), () => {
+		frappe.confirm(this.t("Delete this event?"), () => {
 			frappe.call({
 				method: "education.education.api.delete_calendar_event",
 				args: { name },
 				callback: () => {
 					this.close_popover();
 					this.refetch_events();
-					frappe.show_alert({ message: __("Event deleted"), indicator: "red" });
+					frappe.show_alert({ message: this.t("Event deleted"), indicator: "red" });
 				},
 			});
 		});
@@ -1128,7 +1332,7 @@ class SchoolCalendarPage {
 	}
 
 	format_date_time(date) {
-		return new Intl.DateTimeFormat(frappe.boot.lang || undefined, {
+		return new Intl.DateTimeFormat(this.get_date_locale(), {
 			month: "short",
 			day: "numeric",
 			hour: "2-digit",
@@ -1137,14 +1341,14 @@ class SchoolCalendarPage {
 	}
 
 	format_month_year(date) {
-		return new Intl.DateTimeFormat(frappe.boot.lang || undefined, {
+		return new Intl.DateTimeFormat(this.get_date_locale(), {
 			month: "long",
 			year: "numeric",
 		}).format(date);
 	}
 
 	format_month_name(date) {
-		return new Intl.DateTimeFormat(frappe.boot.lang || undefined, {
+		return new Intl.DateTimeFormat(this.get_date_locale(), {
 			month: "long",
 		}).format(date);
 	}

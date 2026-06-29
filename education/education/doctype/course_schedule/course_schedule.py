@@ -28,7 +28,7 @@ class CourseSchedule(Document):
 		self.validate_topic_immutable()
 		self.validate_topic()
 
-		if cint(self.create_recurring_schedule):
+		if self.is_new() and cint(getattr(self, "create_recurring_schedule", 0)):
 			if not self.start_date or not self.end_date:
 				frappe.throw(_("Please set Start Date and End Date for the Course/Student Group to create a recurring schedule."))
 
@@ -390,7 +390,7 @@ class CourseSchedule(Document):
 			first_topic = topics[0] if topics else None
 			if first_topic:
 				frappe.db.set_value("Course Schedule", self.name, "topic", first_topic)
-			frappe.db.set_value("Course Schedule", self.name, "create_recurring_schedule", 0)
+			self.create_recurring_schedule = 0
 
 			for i in range(1, len(recurring_dates)):
 				date = recurring_dates[i]

@@ -1,0 +1,93 @@
+4 days,4 ngày
+Academy Calendar,Lịch học viện
+All day,Cả ngày
+Amber,Hổ phách
+Apply,Áp dụng
+Assistant,Trợ giảng
+Blue,Xanh dương
+Calendar,Lịch
+Calendar library is not available.,Không tải được thư viện lịch.
+Calendar settings,Cài đặt lịch
+Cancelled,Đã hủy
+Cyan,Xanh lơ
+Clear resource filters,Xóa bộ lọc nguồn lực
+Closed,Đã đóng
+Color,Màu
+Compact event rows,Thu gọn dòng sự kiện
+Completed,Hoàn thành
+Continue,Tiếp tục
+Course,Khóa học
+Course Schedule,Lịch dạy
+Course Schedule created,Đã tạo lịch dạy
+Course Schedule must start and end on the same date,Lịch dạy phải bắt đầu và kết thúc trong cùng một ngày
+Create,Tạo mới
+Create Course Schedule,Tạo lịch dạy
+Create event,Tạo sự kiện
+Day,Ngày
+Delete,Xóa
+Delete this event?,Xóa sự kiện này?
+Description,Mô tả
+Edit,Chỉnh sửa
+Edit event,Chỉnh sửa sự kiện
+End date must be after start date,Thời gian kết thúc phải sau thời gian bắt đầu
+Ends on,Kết thúc
+Event,Sự kiện
+Event deleted,Đã xóa sự kiện
+Event saved,Đã lưu sự kiện
+Future Academy,Future Academy
+Green,Xanh lá
+Instructor,Giảng viên
+Loading,Đang tải
+Menu,Menu
+Missing calendar date range,Thiếu khoảng thời gian của lịch
+Month,Tháng
+My Events,Sự kiện của tôi
+Next,Tiếp
+Next month,Tháng sau
+No assistants in this range,Không có trợ giảng trong khoảng này
+No events to display,Không có sự kiện để hiển thị
+No instructors in this range,Không có giảng viên trong khoảng này
+No people found,Không tìm thấy người phù hợp
+Not permitted,Không có quyền
+Not permitted to create course schedules,Không có quyền tạo lịch dạy
+Not permitted to create events,Không có quyền tạo sự kiện
+Not permitted to delete this event,Không có quyền xóa sự kiện này
+Not permitted to read this event,Không có quyền xem sự kiện này
+Not permitted to update this event,Không có quyền cập nhật sự kiện này
+Open,Mở
+Orange,Cam
+Pink,Hồng
+Previous,Trước
+Previous month,Tháng trước
+Private,Riêng tư
+Public,Công khai
+Purple,Tím
+Red,Đỏ
+Resource,Nguồn lực
+Room,Phòng
+Save,Lưu
+Schedule,Lịch biểu
+School Calendar,Lịch trường học
+Search,Tìm kiếm
+Search for people,Tìm người
+Settings,Cài đặt
+Show weekends,Hiển thị cuối tuần
+Starts on,Bắt đầu
+Status,Trạng thái
+Student Group,Lớp học
+Teal,Xanh ngọc
+This calendar view is not available.,Chế độ xem lịch này không khả dụng.
+Title,Tiêu đề
+Title is required,Tiêu đề là bắt buộc
+Today,Hôm nay
+Toggle sidebar,Ẩn hiện thanh bên
+Untitled Event,Sự kiện chưa có tiêu đề
+Violet,Tím violet
+Visibility,Hiển thị
+Week,Tuần
+Year,Năm
+Yellow,Vàng
+You do not have permission to create calendar records.,Bạn không có quyền tạo bản ghi lịch.
+You do not have permission to create this calendar record.,Bạn không có quyền tạo bản ghi lịch này.
+{0} is required,{0} là bắt buộc
+events,sự kiện
