@@ -1,5 +1,6 @@
 import frappe
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+from frappe.custom.doctype.property_setter.property_setter import make_property_setter
 from frappe.desk.page.setup_wizard.setup_wizard import make_records
 from frappe.permissions import add_permission, update_permission_property
 
@@ -10,6 +11,7 @@ def after_install():
 	create_parent_assessment_group()
 	create_invoice_permissions()
 	create_custom_fields(get_custom_fields())
+	apply_lead_property_setters()
 	create_permissions(get_permissions())
 
 
@@ -89,8 +91,186 @@ def create_permissions(doctype_permissions):
 
 
 def get_custom_fields():
-	"""Education specific custom fields that needs to be added to the Sales Invoice DocType."""
+	"""Education specific custom fields added to ERPNext DocTypes."""
 	return {
+		"Lead": [
+			{
+				"fieldname": "education_general_information",
+				"fieldtype": "Section Break",
+				"label": "General Information",
+				"insert_after": "naming_series",
+			},
+			{
+				"fieldname": "education_date_of_birth",
+				"fieldtype": "Date",
+				"label": "Date of Birth",
+				"insert_after": "education_general_information",
+			},
+			{
+				"fieldname": "education_grade_class",
+				"fieldtype": "Link",
+				"label": "Grade / Class",
+				"options": "Student Group",
+				"insert_after": "education_date_of_birth",
+			},
+			{
+				"fieldname": "education_lead_owner_employee",
+				"fieldtype": "Link",
+				"label": "Lead Owner (responsible sales person)",
+				"options": "Employee",
+				"insert_after": "education_grade_class",
+			},
+			{
+				"fieldname": "education_parent_information",
+				"fieldtype": "Section Break",
+				"label": "Parent Information",
+				"insert_after": "phone_ext",
+			},
+			{
+				"fieldname": "education_parent_full_name",
+				"fieldtype": "Data",
+				"label": "Full Name",
+				"insert_after": "education_parent_information",
+			},
+			{
+				"fieldname": "education_parent_phone_number",
+				"fieldtype": "Data",
+				"label": "Phone Number",
+				"options": "Phone",
+				"insert_after": "education_parent_full_name",
+			},
+			{
+				"fieldname": "education_parent_email",
+				"fieldtype": "Data",
+				"label": "Email",
+				"options": "Email",
+				"insert_after": "education_parent_phone_number",
+			},
+			{
+				"fieldname": "education_parent_relationship",
+				"fieldtype": "Select",
+				"label": "Relationship",
+				"options": "\nMother\nFather\nOthers",
+				"insert_after": "education_parent_email",
+			},
+			{
+				"fieldname": "education_parent_column_break",
+				"fieldtype": "Column Break",
+				"insert_after": "education_parent_relationship",
+			},
+			{
+				"fieldname": "education_guardian",
+				"fieldtype": "Link",
+				"label": "Guardian",
+				"options": "Guardian",
+				"read_only": 1,
+				"insert_after": "education_parent_column_break",
+			},
+			{
+				"fieldname": "education_course_source_information",
+				"fieldtype": "Section Break",
+				"label": "Course & Source Information",
+				"insert_after": "education_guardian",
+			},
+			{
+				"fieldname": "education_items",
+				"fieldtype": "Table",
+				"label": "Items",
+				"options": "Education Lead Item",
+				"insert_after": "education_course_source_information",
+			},
+			{
+				"fieldname": "education_course_source_column_break",
+				"fieldtype": "Column Break",
+				"insert_after": "education_items",
+			},
+			{
+				"fieldname": "education_campaign",
+				"fieldtype": "Link",
+				"label": "Campaign",
+				"options": "Campaign",
+				"insert_after": "education_course_source_column_break",
+			},
+			{
+				"fieldname": "education_delivery_date",
+				"fieldtype": "Date",
+				"label": "Delivery Date",
+				"insert_after": "education_campaign",
+			},
+			{
+				"fieldname": "education_auto_order_section",
+				"fieldtype": "Section Break",
+				"label": "Auto Sales Order",
+				"collapsible": 1,
+				"insert_after": "education_delivery_date",
+			},
+			{
+				"default": "1",
+				"fieldname": "education_auto_create_sales_order",
+				"fieldtype": "Check",
+				"label": "Auto Create Sales Order",
+				"insert_after": "education_auto_order_section",
+			},
+			{
+				"default": "0",
+				"fieldname": "education_submit_sales_order",
+				"fieldtype": "Check",
+				"label": "Submit Sales Order Automatically",
+				"insert_after": "education_auto_create_sales_order",
+			},
+			{
+				"fieldname": "education_auto_order_status",
+				"fieldtype": "Select",
+				"label": "Auto Order Status",
+				"options": "\nPending\nSkipped\nQueued\nCompleted\nFailed",
+				"read_only": 1,
+				"insert_after": "education_submit_sales_order",
+			},
+			{
+				"fieldname": "education_auto_order_column_break",
+				"fieldtype": "Column Break",
+				"insert_after": "education_auto_order_status",
+			},
+			{
+				"fieldname": "education_auto_opportunity",
+				"fieldtype": "Link",
+				"label": "Opportunity",
+				"options": "Opportunity",
+				"read_only": 1,
+				"insert_after": "education_auto_order_column_break",
+			},
+			{
+				"fieldname": "education_auto_quotation",
+				"fieldtype": "Link",
+				"label": "Quotation",
+				"options": "Quotation",
+				"read_only": 1,
+				"insert_after": "education_auto_opportunity",
+			},
+			{
+				"fieldname": "education_auto_sales_order",
+				"fieldtype": "Link",
+				"label": "Sales Order",
+				"options": "Sales Order",
+				"read_only": 1,
+				"insert_after": "education_auto_quotation",
+			},
+			{
+				"fieldname": "education_auto_customer",
+				"fieldtype": "Link",
+				"label": "Customer",
+				"options": "Customer",
+				"read_only": 1,
+				"insert_after": "education_auto_sales_order",
+			},
+			{
+				"fieldname": "education_auto_order_error",
+				"fieldtype": "Small Text",
+				"label": "Auto Order Error",
+				"read_only": 1,
+				"insert_after": "education_auto_customer",
+			},
+		],
 		"Sales Invoice": [
 			{
 				"fieldname": "student_info_section",
@@ -148,3 +328,111 @@ def get_custom_fields():
 			},
 		],
 	}
+
+
+def apply_lead_property_setters():
+	delete_removed_lead_custom_fields()
+
+	for fieldname in get_core_lead_fields():
+		make_property_setter(
+			"Lead",
+			fieldname,
+			"hidden",
+			1,
+			"Check",
+			validate_fields_for_doctype=False,
+		)
+
+
+def get_core_lead_fields():
+	return [
+		"naming_series",
+		"salutation",
+		"first_name",
+		"middle_name",
+		"last_name",
+		"column_break_1",
+		"col_break123",
+		"lead_name",
+		"job_title",
+		"gender",
+		"lead_owner",
+		"status",
+		"customer",
+		"type",
+		"request_type",
+		"contact_info_tab",
+		"email_id",
+		"website",
+		"column_break_20",
+		"mobile_no",
+		"whatsapp_no",
+		"column_break_16",
+		"phone",
+		"phone_ext",
+		"organization_section",
+		"company_name",
+		"no_of_employees",
+		"column_break_28",
+		"annual_revenue",
+		"industry",
+		"market_segment",
+		"column_break_31",
+		"territory",
+		"fax",
+		"address_section",
+		"address_html",
+		"column_break_38",
+		"column_break2",
+		"contact_html",
+		"city",
+		"state",
+		"country",
+		"section_break_analytics",
+		"utm_source",
+		"utm_content",
+		"column_break_gkxo",
+		"utm_campaign",
+		"column_break_gqka",
+		"utm_medium",
+		"qualification_tab",
+		"qualification_status",
+		"column_break_64",
+		"qualified_by",
+		"qualified_on",
+		"other_info_tab",
+		"company",
+		"column_break_22",
+		"language",
+		"image",
+		"title",
+		"column_break_50",
+		"disabled",
+		"unsubscribed",
+		"blog_subscriber",
+		"activities_tab",
+		"open_activities_html",
+		"all_activities_section",
+		"all_activities_html",
+		"notes_tab",
+		"notes_html",
+		"notes",
+		"dashboard_tab",
+	]
+
+
+def delete_removed_lead_custom_fields():
+	for custom_field in (
+		"Lead-education_student_full_name",
+		"Lead-education_general_column_break",
+		"Lead-education_student",
+	):
+		if not frappe.db.exists("Custom Field", custom_field):
+			continue
+
+		frappe.delete_doc(
+			"Custom Field",
+			custom_field,
+			ignore_permissions=True,
+			force=True,
+		)

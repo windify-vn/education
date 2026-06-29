@@ -191,6 +191,12 @@ doc_events = {
 		"validate": "education.education.utils.validate_homework",
 		"on_update": "education.education.utils.sync_homework_to_topic",
 		"after_insert": "education.education.utils.sync_homework_to_topic",
+	},
+	"Lead": {
+		"before_validate": "education.education.lead.before_validate",
+		"validate": "education.education.lead.validate",
+		"after_insert": "education.education.lead.after_insert",
+		"on_update": "education.education.lead.on_update",
 	}
 }
 
