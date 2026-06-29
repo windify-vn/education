@@ -96,6 +96,11 @@ const routes = [
     component: () => import('@/pages/AssessmentResultDetail.vue'),
   },
   {
+    path: '/notifications',
+    name: 'Thông báo',
+    component: () => import('@/pages/Notifications.vue'),
+  },
+  {
     path: '/:catchAll(.*)',
     name: 'Không tìm thấy trang',
     component: () => import('@/pages/404.vue'),

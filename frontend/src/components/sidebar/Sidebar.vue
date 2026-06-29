@@ -1,45 +1,70 @@
 <template>
-  <div class="flex h-full flex-col transition-all duration-500 ease-out relative overflow-hidden" :class="[
-    isSidebarCollapsed ? 'w-16' : 'w-64'
-  ]">
+  <div
+    class="flex h-full flex-col transition-all duration-500 ease-out relative overflow-hidden"
+    :class="[isSidebarCollapsed ? 'w-16' : 'w-64']"
+  >
     <!-- Main background with lighter gradient -->
-    <div class="absolute inset-0 bg-gradient-to-br from-[var(--color-primary)]/20 via-[#FF6B35]/15 to-[#E04A1A]/20">
-    </div>
+    <div
+      class="absolute inset-0 bg-gradient-to-br from-[var(--color-primary)]/20 via-[#FF6B35]/15 to-[#E04A1A]/20"
+    ></div>
 
     <!-- Main content container -->
     <div class="relative flex flex-col h-full">
       <div class="flex justify-between items-center p-2">
         <!-- User section -->
         <div class="z-10">
-          <UserDropdown :isCollapsed="isSidebarCollapsed" :educationSettings="!educationSettings.loading && educationSettings.data
-            " />
+          <UserDropdown
+            :isCollapsed="isSidebarCollapsed"
+            :educationSettings="
+              !educationSettings.loading && educationSettings.data
+            "
+          />
         </div>
         <!-- Mobile Close Button -->
         <div class="lg:hidden flex justify-end p-2">
-          <button @click="$emit('close-mobile-sidebar')"
-            class="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">
+          <button
+            @click="$emit('close-mobile-sidebar')"
+            class="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+          >
             <X class="h-5 w-5" />
           </button>
         </div>
       </div>
 
       <!-- Navigation menu -->
-      <div class="flex-1 px-3 py-2 overflow-y-auto border-t border-[var(--color-primary)]/20">
+      <div
+        class="flex-1 px-3 py-2 overflow-y-auto border-t border-[var(--color-primary)]/20"
+      >
         <nav class="space-y-1">
-          <SidebarLink :label="link.label" :to="link.to" v-for="link in links" :key="link.to"
-            :isCollapsed="isSidebarCollapsed" :icon="link.icon" />
+          <SidebarLink
+            :label="link.label"
+            :to="link.to"
+            v-for="link in links"
+            :key="link.to"
+            :isCollapsed="isSidebarCollapsed"
+            :icon="link.icon"
+          />
         </nav>
       </div>
 
       <!-- Footer with toggle button (Desktop only) -->
-      <div class="hidden lg:block px-3 py-3 border-t border-[var(--color-primary)]/20">
-        <SidebarLink :label="isSidebarCollapsedStorage ? 'Mở rộng' : 'Thu gọn'" :isCollapsed="isSidebarCollapsed"
+      <div
+        class="hidden lg:block px-3 py-3 border-t border-[var(--color-primary)]/20"
+      >
+        <SidebarLink
+          :label="isSidebarCollapsedStorage ? 'Mở rộng' : 'Thu gọn'"
+          :isCollapsed="isSidebarCollapsed"
           @click="isSidebarCollapsedStorage = !isSidebarCollapsedStorage"
-          class="w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 text-white hover:text-white font-medium">
+          class="w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 text-white hover:text-white font-medium"
+        >
           <template #icon>
             <span class="grid h-5 w-5 flex-shrink-0 place-items-center">
-              <ArrowLeftToLine class="h-4 w-4 text-white duration-500 ease-out"
-                :class="{ '[transform:rotateY(180deg)]': isSidebarCollapsedStorage }" />
+              <ArrowLeftToLine
+                class="h-4 w-4 text-white duration-500 ease-out"
+                :class="{
+                  '[transform:rotateY(180deg)]': isSidebarCollapsedStorage,
+                }"
+              />
             </span>
           </template>
         </SidebarLink>
@@ -53,6 +78,7 @@ import SidebarLink from '@/components/sidebar/SidebarLink.vue'
 import { useStorage } from '@vueuse/core'
 import {
   ArrowLeftToLine,
+  Bell,
   BookOpen,
   CalendarCheck,
   MonitorSmartphone,
@@ -126,6 +152,11 @@ const links = [
     to: '/learning',
     icon: BookOpen,
   },
+  // {
+  //   label: 'Thông báo',
+  //   to: '/notifications',
+  //   icon: Bell,
+  // },
   // {
   // 	// TODO: create School Diary Page with card like CRM and from ListView go to Resource Document of each Card
   // 	label: 'Notes',
