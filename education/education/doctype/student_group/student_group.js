@@ -9,27 +9,12 @@ frappe.ui.form.on('Student Group', {
     })
     if (!frm.__islocal) {
       frm.set_query('student', 'students', function () {
-        let filters = {
-          group_based_on: frm.doc.group_based_on,
-        }
-
-        if (!(frm.doc.group_based_on === 'Activity')) {
-          filters = {
-            ...filters,
-            academic_year: frm.doc.academic_year,
-            academic_term: frm.doc.academic_term,
-            program: frm.doc.program,
-            batch: frm.doc.batch,
-            student_category: frm.doc.student_category,
-            course: frm.doc.course,
-            student_group: frm.doc.name,
-          }
-        }
-
         return {
           query:
             'education.education.doctype.student_group.student_group.fetch_students',
-          filters: filters,
+          filters: {
+            student_group: frm.doc.name,
+          },
         }
       })
     }

@@ -598,6 +598,8 @@ def get_calendar_events(start, end, calendars=None, search=None, view=None, reso
 			subtitle = " · ".join(
 				filter(None, [schedule.get("student_group"), schedule.get("instructor_name"), schedule.get("room")])
 			)
+			can_write = 1 if frappe.has_permission("Course Schedule", "write", doc=schedule.name) else 0
+			can_delete = 1 if frappe.has_permission("Course Schedule", "delete", doc=schedule.name) else 0
 			events.append(
 				{
 					"id": f"course_schedule::{schedule.name}",
@@ -616,9 +618,9 @@ def get_calendar_events(start, end, calendars=None, search=None, view=None, reso
 						"name": schedule.name,
 						"source": "course_schedule",
 						"subtitle": subtitle,
-						"read_only": 0
-						if frappe.has_permission("Course Schedule", "write", doc=schedule.name)
-						else 1,
+						"read_only": 0 if can_write else 1,
+						"can_write": can_write,
+						"can_delete": can_delete,
 					},
 				}
 			)
@@ -657,6 +659,8 @@ def get_calendar_events(start, end, calendars=None, search=None, view=None, reso
 			color = event.get("color") or "#188038"
 			if event.get("all_day") and getdate(event_end) <= getdate(event.get("starts_on")):
 				event_end = add_days(getdate(event.get("starts_on")), 1)
+			can_write = 1 if frappe.has_permission("Event", "write", event.name) else 0
+			can_delete = 1 if frappe.has_permission("Event", "delete", event.name) else 0
 			events.append(
 				{
 					"id": f"event::{event.name}",
@@ -668,14 +672,16 @@ def get_calendar_events(start, end, calendars=None, search=None, view=None, reso
 					"end": event_end,
 					"allDay": event.get("all_day"),
 					"color": color,
-					"editable": frappe.has_permission("Event", "write", event.name),
+					"editable": Boolean(can_write),
 					"extendedProps": {
 						"doctype": "Event",
 						"name": event.name,
 						"source": "event",
 						"description": event.get("description"),
 						"status": event.get("status"),
-						"read_only": 0 if frappe.has_permission("Event", "write", event.name) else 1,
+						"read_only": 0 if can_write else 1,
+						"can_write": can_write,
+						"can_delete": can_delete,
 					},
 				}
 			)

@@ -5,7 +5,7 @@ frappe.pages["school-calendar"].on_page_load = function (wrapper) {
 
 	frappe.ui.make_app_page({
 		parent: wrapper,
-		title: __("Academy Calendar"),
+		title: __("Future Academy"),
 		single_column: true,
 	});
 
@@ -750,6 +750,11 @@ class SchoolCalendarPage {
 		return this.sources.some((source) => source.can_create);
 	}
 
+	can_create_source(source_id) {
+		const source = this.sources.find((item) => item.id === source_id);
+		return Boolean(source && source.can_create);
+	}
+
 	update_create_button_state() {
 		this.$page.find('[data-action="create"]').toggleClass("is-disabled", !this.can_create_event());
 	}
@@ -821,6 +826,11 @@ class SchoolCalendarPage {
 	}
 
 	open_create_dialog_for_source(source, options = {}) {
+		if (!this.can_create_source(source)) {
+			frappe.msgprint(__("You do not have permission to create this calendar record."));
+			return;
+		}
+
 		const start = options.start || this.current_date;
 		const end = options.end || this.add_hours(start, 1);
 
@@ -978,8 +988,10 @@ class SchoolCalendarPage {
 		this.close_popover();
 		const props = event.extendedProps || {};
 		const is_read_only = Boolean(props.read_only);
-		const can_edit = !is_read_only;
-		const can_delete = props.source === "event" && !is_read_only;
+		const can_write = props.can_write === undefined ? !is_read_only : Boolean(props.can_write)
+		const can_delete_record = props.can_delete === undefined ? !is_read_only : Boolean(props.can_delete)
+		const can_edit = can_write
+		const can_delete = props.source === "event" && can_delete_record
 		const title = this.escape(event.title || __("Untitled Event"));
 		const subtitle = this.escape(props.subtitle || this.format_event_time(event));
 		const description = props.description ? this.escape(props.description) : "";

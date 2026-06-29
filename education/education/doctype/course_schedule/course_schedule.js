@@ -78,6 +78,8 @@ frappe.ui.form.on('Course Schedule', {
   },
 
   refresh(frm) {
+    frm.toggle_display('naming_series', false)
+
     if (!frm.doc.__islocal) {
       frm.add_custom_button(__('Mark Attendance'), () => {
         frappe.route_options = {
@@ -93,6 +95,7 @@ frappe.ui.form.on('Course Schedule', {
         preserve_existing_instructor: !frm.doc.__islocal,
       })
     }
+    frm.events.toggle_instructor_editable(frm)
     frm.events.toggle_recurring_schedule_fields(frm)
     frm.events.toggle_topic_editable(frm)
     frm.events.cache_original_topic(frm)
@@ -102,9 +105,11 @@ frappe.ui.form.on('Course Schedule', {
     frm.events.calculate_end_time(frm)
     frm.events.set_schedule_weekday(frm)
     frm.events.set_attendance_delete_guard(frm)
+    frm.events.apply_permission_ui(frm)
   },
 
   student_group(frm) {
+    frm.events.toggle_instructor_editable(frm)
     frm.events.set_student_group_defaults(frm)
   },
 
@@ -180,6 +185,44 @@ frappe.ui.form.on('Course Schedule', {
     frm.set_df_property('topic', 'read_only', 1)
   },
 
+  toggle_instructor_editable(frm) {
+    const can_select_instructor = !frm.doc.__islocal || Boolean(frm.doc.student_group)
+    frm.set_df_property('instructor', 'hidden', 0)
+    frm.toggle_display('instructor', true)
+    frm.toggle_enable('instructor', can_select_instructor)
+    frm.refresh_field('instructor')
+  },
+
+  apply_permission_ui(frm) {
+    const can_create = can_model('create', frm.doctype)
+    const can_write = can_model('write', frm.doctype)
+    const can_delete = can_model('delete', frm.doctype)
+
+    if (frm.doc.__islocal && !can_create) {
+      frm.disable_form()
+      frm.dashboard.set_headline_alert(
+        __('You have read-only access to Course Schedule.'),
+        'blue'
+      )
+      return
+    }
+
+    if (!frm.doc.__islocal && !can_write) {
+      frm.disable_form()
+      frm.dashboard.set_headline_alert(
+        __('You have read-only access to this Course Schedule.'),
+        'blue'
+      )
+      frm.events.show_saved_topic_fields(frm)
+      setTimeout(() => frm.events.show_saved_topic_fields(frm), 0)
+    }
+
+    if (!can_delete) {
+      remove_delete_menu_item(frm)
+      setTimeout(() => remove_delete_menu_item(frm), 0)
+    }
+  },
+
   validate_topic_change(frm, restore = false) {
     if (
       frm.doc.__islocal ||
@@ -211,6 +254,7 @@ frappe.ui.form.on('Course Schedule', {
         end_date: '',
         instructor: '',
       })
+      frm.events.toggle_instructor_editable(frm)
       return
     }
 
@@ -309,4 +353,9 @@ function remove_delete_menu_item(frm) {
     .filter((_, item) => $(item).text().trim() === __('Delete'))
     .closest('li')
     .remove()
+}
+
+function can_model(permission, doctype) {
+  const checker = frappe.model && frappe.model[`can_${permission}`]
+  return checker ? Boolean(checker(doctype)) : true
 }

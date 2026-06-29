@@ -176,39 +176,25 @@ def get_program_enrollment(
 @frappe.whitelist()
 @frappe.validate_and_sanitize_search_inputs
 def fetch_students(doctype, txt, searchfield, start, page_len, filters):
-	if filters.get("group_based_on") != "Activity":
-		enrolled_students = get_program_enrollment(
-			filters.get("academic_year"),
-			filters.get("academic_term"),
-			filters.get("program"),
-			filters.get("batch"),
-			filters.get("student_category"),
+	filters = filters or {}
+	student_group_students = frappe.db.sql_list(
+		"""select student from `tabStudent Group Student` where parent=%s""",
+		(filters.get("student_group"),),
+	)
+	student_group_condition = ""
+	query_values = []
+	if student_group_students:
+		student_group_condition = "and name not in ({0})".format(
+			", ".join(["%s"] * len(student_group_students))
 		)
-		student_group_student = frappe.db.sql_list(
-			"""select student from `tabStudent Group Student` where parent=%s""",
-			(filters.get("student_group")),
-		)
-		students = (
-			[d.student for d in enrolled_students if d.student not in student_group_student]
-			if enrolled_students
-			else [""]
-		) or [""]
-		return frappe.db.sql(
-			"""select name, student_name from tabStudent
-			where name in ({0}) and (`{1}` LIKE %s or student_name LIKE %s)
-			order by idx desc, name
-			limit %s, %s""".format(
-				", ".join(["%s"] * len(students)), searchfield
-			),
-			tuple(students + ["%%%s%%" % txt, "%%%s%%" % txt, start, page_len]),
-		)
-	else:
-		return frappe.db.sql(
-			"""select name, student_name from tabStudent
-			where `{0}` LIKE %s or student_name LIKE %s
-			order by idx desc, name
-			limit %s, %s""".format(
-				searchfield
-			),
-			tuple(["%%%s%%" % txt, "%%%s%%" % txt, start, page_len]),
-		)
+		query_values.extend(student_group_students)
+
+	return frappe.db.sql(
+		"""select name, student_name from tabStudent
+		where enabled = 1
+			and (`{0}` LIKE %s or student_name LIKE %s)
+			{1}
+		order by idx desc, name
+		limit %s, %s""".format(searchfield, student_group_condition),
+		tuple(["%%%s%%" % txt, "%%%s%%" % txt] + query_values + [start, page_len]),
+	)

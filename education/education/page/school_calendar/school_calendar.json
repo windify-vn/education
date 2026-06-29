@@ -10,7 +10,17 @@
  "name": "school-calendar",
  "owner": "Administrator",
  "page_name": "school-calendar",
- "roles": [],
+ "roles": [
+  {
+   "role": "Education Manager"
+  },
+  {
+   "role": "Instructor"
+  },
+  {
+   "role": "Student"
+  }
+ ],
  "script": null,
  "standard": "Yes",
  "style": null,
