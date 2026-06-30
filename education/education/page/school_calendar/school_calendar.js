@@ -29,6 +29,7 @@ const SCHOOL_CALENDAR_VI_MESSAGES = {
 	Day: "Ngày",
 	Delete: "Xóa",
 	"Delete this event?": "Xóa sự kiện này?",
+	"Delete this schedule?": "Xóa lịch dạy này?",
 	Description: "Mô tả",
 	Edit: "Chỉnh sửa",
 	"Edit event": "Chỉnh sửa sự kiện",
@@ -54,6 +55,7 @@ const SCHOOL_CALENDAR_VI_MESSAGES = {
 	"Not permitted": "Không có quyền",
 	"Not permitted to create course schedules": "Không có quyền tạo lịch dạy",
 	"Not permitted to create events": "Không có quyền tạo sự kiện",
+	"Not permitted to delete this course schedule": "Không có quyền xóa lịch dạy này",
 	"Not permitted to delete this event": "Không có quyền xóa sự kiện này",
 	"Not permitted to read this event": "Không có quyền xem sự kiện này",
 	"Not permitted to update this event": "Không có quyền cập nhật sự kiện này",
@@ -70,6 +72,7 @@ const SCHOOL_CALENDAR_VI_MESSAGES = {
 	Room: "Phòng",
 	Save: "Lưu",
 	Schedule: "Lịch biểu",
+	"Schedule deleted": "Đã xóa lịch dạy",
 	Search: "Tìm kiếm",
 	"Search for people": "Tìm người",
 	Settings: "Cài đặt",
@@ -78,6 +81,7 @@ const SCHOOL_CALENDAR_VI_MESSAGES = {
 	Status: "Trạng thái",
 	"Student Group": "Lớp học",
 	Teal: "Xanh ngọc",
+	"This calendar record cannot be deleted": "Không thể xóa bản ghi lịch này",
 	"This calendar view is not available.": "Chế độ xem lịch này không khả dụng.",
 	Title: "Tiêu đề",
 	"Title is required": "Tiêu đề là bắt buộc",
@@ -1195,7 +1199,7 @@ class SchoolCalendarPage {
 		const can_write = props.can_write === undefined ? !is_read_only : Boolean(props.can_write);
 		const can_delete_record = props.can_delete === undefined ? !is_read_only : Boolean(props.can_delete);
 		const can_edit = can_write;
-		const can_delete = props.source === "event" && can_delete_record;
+		const can_delete = ["event", "course_schedule"].includes(props.source) && can_delete_record;
 		const title = this.escape(event.title || this.t("Untitled Event"));
 		const subtitle = this.escape(props.subtitle || this.format_event_time(event));
 		const description = props.description ? this.escape(props.description) : "";
@@ -1211,7 +1215,6 @@ class SchoolCalendarPage {
 				<div class="school-popover-color" style="--event-color: ${this.escape(event.backgroundColor || event.borderColor || "#1a73e8")}"></div>
 				<div class="school-popover-body">
 					<div class="school-popover-actions">
-						<button class="school-icon-btn" data-popover-action="open">${this.icon("arrow-right", this.t("Open"))}</button>
 						${edit_action}
 						${delete_action}
 					</div>
@@ -1235,7 +1238,7 @@ class SchoolCalendarPage {
 				}
 				this.close_popover();
 			} else if (action === "delete") {
-				this.confirm_delete(props.name);
+				this.confirm_delete(props);
 			}
 		});
 	}
@@ -1261,15 +1264,30 @@ class SchoolCalendarPage {
 		}
 	}
 
-	confirm_delete(name) {
-		frappe.confirm(this.t("Delete this event?"), () => {
+	confirm_delete(event_props) {
+		const props =
+			typeof event_props === "string"
+				? { name: event_props, source: "event", doctype: "Event" }
+				: event_props || {};
+		const is_course_schedule = props.source === "course_schedule" || props.doctype === "Course Schedule";
+		const confirm_message = is_course_schedule ? this.t("Delete this schedule?") : this.t("Delete this event?");
+		const deleted_message = is_course_schedule ? this.t("Schedule deleted") : this.t("Event deleted");
+		const args = { name: props.name };
+		if (props.source) {
+			args.source = props.source;
+		}
+		if (props.doctype) {
+			args.doctype = props.doctype;
+		}
+
+		frappe.confirm(confirm_message, () => {
 			frappe.call({
 				method: "education.education.api.delete_calendar_event",
-				args: { name },
+				args,
 				callback: () => {
 					this.close_popover();
 					this.refetch_events();
-					frappe.show_alert({ message: this.t("Event deleted"), indicator: "red" });
+					frappe.show_alert({ message: deleted_message, indicator: "red" });
 				},
 			});
 		});

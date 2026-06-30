@@ -22,6 +22,17 @@ WEEKDAY_FIELDS = [
 ]
 
 
+def get_time_filter_value(value):
+	time_value = to_timedelta(value)
+	if not isinstance(time_value, timedelta):
+		return value
+
+	total_seconds = int(time_value.total_seconds()) % (24 * 60 * 60)
+	hours, remainder = divmod(total_seconds, 3600)
+	minutes, seconds = divmod(remainder, 60)
+	return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
 class CourseSchedule(Document):
 	def validate(self):
 		self.set_student_group_defaults()
@@ -109,6 +120,10 @@ class CourseSchedule(Document):
 			},
 		)
 		if duplicate_schedule:
+			allowed_duplicate = getattr(self.flags, "ignore_topic_duplicate_for_schedule", None)
+			if allowed_duplicate and duplicate_schedule == allowed_duplicate:
+				return
+
 			frappe.throw(
 				_("Topic {0} is already assigned to Course Schedule {1}.").format(
 					frappe.bold(self.topic), frappe.bold(duplicate_schedule)
@@ -140,14 +155,18 @@ class CourseSchedule(Document):
 		topics = self.get_course_topics()
 		if not topics:
 			return
+		if self.topic not in topics:
+			return
 
 		series_schedules = self.get_recurring_series_schedules()
 		if not series_schedules:
 			return
 
+		deleted_schedule_date = getdate(self.schedule_date)
+		topics_to_shift = topics[topics.index(self.topic):]
 		recurring_dates = self.get_recurring_dates(
-			exclude_date=getdate(self.schedule_date)
-		)[: len(topics)]
+			after_date=deleted_schedule_date
+		)[: len(topics_to_shift)]
 		if not recurring_dates:
 			return
 
@@ -160,7 +179,7 @@ class CourseSchedule(Document):
 		planned_updates = []
 		planned_inserts = []
 		for index, schedule_date in enumerate(recurring_dates):
-			topic = topics[index]
+			topic = topics_to_shift[index]
 			schedule = schedules_by_date.get(schedule_date)
 			if schedule:
 				if schedule.topic != topic:
@@ -178,6 +197,7 @@ class CourseSchedule(Document):
 			new_schedule.schedule_date = schedule_date
 			new_schedule.topic = topic
 			new_schedule.create_recurring_schedule = 0
+			new_schedule.flags.ignore_topic_duplicate_for_schedule = self.name
 			new_schedule.insert(ignore_permissions=True)
 
 	def should_reflow_recurring_topics(self):
@@ -199,7 +219,7 @@ class CourseSchedule(Document):
 			pluck="topic",
 		)
 
-	def get_recurring_dates(self, exclude_date=None):
+	def get_recurring_dates(self, exclude_date=None, after_date=None):
 		selected_weekdays = {
 			index for index, fieldname in enumerate(WEEKDAY_FIELDS) if cint(self.get(fieldname))
 		}
@@ -207,12 +227,17 @@ class CourseSchedule(Document):
 			return []
 
 		exclude_date = getdate(exclude_date) if exclude_date else None
+		after_date = getdate(after_date) if after_date else None
 		date = getdate(self.start_date)
 		end_date = getdate(self.end_date)
 		recurring_dates = []
 
 		while date <= end_date:
-			if date.weekday() in selected_weekdays and date != exclude_date:
+			if (
+				date.weekday() in selected_weekdays
+				and date != exclude_date
+				and (not after_date or date > after_date)
+			):
 				recurring_dates.append(date)
 			date = add_days(date, 1)
 
@@ -226,7 +251,7 @@ class CourseSchedule(Document):
 			"course": self.course,
 			"start_date": self.start_date,
 			"end_date": self.end_date,
-			"from_time": self.from_time,
+			"from_time": get_time_filter_value(self.from_time),
 			"duration": self.duration,
 		}
 		for fieldname in WEEKDAY_FIELDS:

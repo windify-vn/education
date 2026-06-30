@@ -26,6 +26,7 @@ Create event,Tạo sự kiện
 Day,Ngày
 Delete,Xóa
 Delete this event?,Xóa sự kiện này?
+Delete this schedule?,Xóa lịch dạy này?
 Description,Mô tả
 Edit,Chỉnh sửa
 Edit event,Chỉnh sửa sự kiện
@@ -51,6 +52,7 @@ No people found,Không tìm thấy người phù hợp
 Not permitted,Không có quyền
 Not permitted to create course schedules,Không có quyền tạo lịch dạy
 Not permitted to create events,Không có quyền tạo sự kiện
+Not permitted to delete this course schedule,Không có quyền xóa lịch dạy này
 Not permitted to delete this event,Không có quyền xóa sự kiện này
 Not permitted to read this event,Không có quyền xem sự kiện này
 Not permitted to update this event,Không có quyền cập nhật sự kiện này
@@ -67,6 +69,7 @@ Resource,Nguồn lực
 Room,Phòng
 Save,Lưu
 Schedule,Lịch biểu
+Schedule deleted,Đã xóa lịch dạy
 School Calendar,Lịch trường học
 Search,Tìm kiếm
 Search for people,Tìm người
@@ -76,6 +79,7 @@ Starts on,Bắt đầu
 Status,Trạng thái
 Student Group,Lớp học
 Teal,Xanh ngọc
+This calendar record cannot be deleted,Không thể xóa bản ghi lịch này
 This calendar view is not available.,Chế độ xem lịch này không khả dụng.
 Title,Tiêu đề
 Title is required,Tiêu đề là bắt buộc

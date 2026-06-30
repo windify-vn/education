@@ -315,10 +315,12 @@ SCHOOL_CALENDAR_VI_MESSAGES = {
 	"My Events": "Sự kiện của tôi",
 	"Not permitted to create course schedules": "Không có quyền tạo lịch dạy",
 	"Not permitted to create events": "Không có quyền tạo sự kiện",
+	"Not permitted to delete this course schedule": "Không có quyền xóa lịch dạy này",
 	"Not permitted to delete this event": "Không có quyền xóa sự kiện này",
 	"Not permitted to read this event": "Không có quyền xem sự kiện này",
 	"Not permitted to update this event": "Không có quyền cập nhật sự kiện này",
 	"Room": "Phòng",
+	"This calendar record cannot be deleted": "Không thể xóa bản ghi lịch này",
 	"Student Group": "Lớp học",
 	"Title is required": "Tiêu đề là bắt buộc",
 	"Untitled Event": "Sự kiện chưa có tiêu đề",
@@ -839,13 +841,32 @@ def update_calendar_event(name, data):
 
 
 @frappe.whitelist()
-def delete_calendar_event(name):
-	"""Delete a core Event from the custom Academy Calendar page."""
-	name = cstr(name).replace("event::", "")
-	doc = frappe.get_doc("Event", name)
+def delete_calendar_event(name, doctype=None, source=None):
+	"""Delete a supported calendar record from the custom Academy Calendar page."""
+	name = cstr(name)
+	doctype = cstr(doctype)
+	source = cstr(source)
+
+	if name.startswith("course_schedule::"):
+		source = "course_schedule"
+		name = name.replace("course_schedule::", "", 1)
+	elif name.startswith("event::"):
+		source = "event"
+		name = name.replace("event::", "", 1)
+
+	if source == "course_schedule" or doctype == "Course Schedule":
+		doctype = "Course Schedule"
+		not_permitted_message = "Not permitted to delete this course schedule"
+	elif source in ("", "event") and doctype in ("", "Event"):
+		doctype = "Event"
+		not_permitted_message = "Not permitted to delete this event"
+	else:
+		frappe.throw(_school_calendar_t("This calendar record cannot be deleted"), frappe.PermissionError)
+
+	doc = frappe.get_doc(doctype, name)
 	if not doc.has_permission("delete"):
-		frappe.throw(_school_calendar_t("Not permitted to delete this event"), frappe.PermissionError)
-	frappe.delete_doc("Event", doc.name)
+		frappe.throw(_school_calendar_t(not_permitted_message), frappe.PermissionError)
+	frappe.delete_doc(doctype, doc.name)
 	return {"name": doc.name}
 
 
