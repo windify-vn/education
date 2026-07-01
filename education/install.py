@@ -139,6 +139,12 @@ def get_custom_fields():
 				"insert_after": "education_date_of_birth",
 			},
 			{
+				"fieldname": "education_address",
+				"fieldtype": "Small Text",
+				"label": "Address",
+				"insert_after": "education_lead_owner_employee",
+			},
+			{
 				"fieldname": "education_parent_information",
 				"fieldtype": "Section Break",
 				"label": "Parent Information",
@@ -440,6 +446,7 @@ def get_priority_lead_fields():
 		"education_general_column_break",
 		"education_date_of_birth",
 		"education_lead_owner_employee",
+		"education_address",
 		"education_parent_information",
 		"education_parent_full_name",
 		"education_parent_email",
