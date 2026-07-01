@@ -69,7 +69,7 @@ export default {
             </div>
           </a>
 
-          <a href="/learning/elearning" target="_blank"
+          <a href="https://windify.edu.vn/learning/ebook" target="_blank"
             class="relative flex-1 bg-gradient-to-t from-[#224773] to-[#4086D9] rounded-lg h-[100px] sm:h-[120px] hover:opacity-80 transition-opacity duration-300">
             <div
               class="flex justify-between items-start size-full text-lg sm:text-xl md:text-2xl lg:text-3xl font-semibold h-full py-3 sm:py-4 px-4 sm:px-5">
