@@ -80,12 +80,14 @@ class Student(Document):
 					"last_name": self.last_name,
 					"email": self.student_email_id,
 					"gender": self.gender,
-					"send_welcome_email": 1,
+					"send_welcome_email": 0,
 					"user_type": "Website User",
 				}
 			)
+			# Disable welcome email sending (email account may not be configured)
+			student_user.flags.no_welcome_mail = True
+			student_user.insert(ignore_permissions=True)
 			student_user.add_roles("Student")
-			student_user.save(ignore_permissions=True)
 
 			self.user = student_user.name
 

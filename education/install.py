@@ -1,6 +1,11 @@
+import json
+
 import frappe
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
-from frappe.custom.doctype.property_setter.property_setter import make_property_setter
+from frappe.custom.doctype.property_setter.property_setter import (
+	delete_property_setter,
+	make_property_setter,
+)
 from frappe.desk.page.setup_wizard.setup_wizard import make_records
 from frappe.permissions import add_permission, update_permission_property
 
@@ -97,28 +102,41 @@ def get_custom_fields():
 			{
 				"fieldname": "education_general_information",
 				"fieldtype": "Section Break",
-				"label": "General Information",
+				"label": "Student Information",
 				"insert_after": "naming_series",
+			},
+			{
+				"fieldname": "education_student_full_name",
+				"fieldtype": "Data",
+				"label": "Full Name",
+				"reqd": 1,
+				"insert_after": "education_general_information",
 			},
 			{
 				"fieldname": "education_date_of_birth",
 				"fieldtype": "Date",
 				"label": "Date of Birth",
-				"insert_after": "education_general_information",
+				"reqd": 1,
+				"insert_after": "education_general_column_break",
 			},
 			{
 				"fieldname": "education_grade_class",
-				"fieldtype": "Link",
+				"fieldtype": "Data",
 				"label": "Grade / Class",
-				"options": "Student Group",
-				"insert_after": "education_date_of_birth",
+				"insert_after": "gender",
+			},
+			{
+				"fieldname": "education_general_column_break",
+				"fieldtype": "Column Break",
+				"insert_after": "education_grade_class",
 			},
 			{
 				"fieldname": "education_lead_owner_employee",
 				"fieldtype": "Link",
 				"label": "Lead Owner (responsible sales person)",
 				"options": "Employee",
-				"insert_after": "education_grade_class",
+				"reqd": 1,
+				"insert_after": "education_date_of_birth",
 			},
 			{
 				"fieldname": "education_parent_information",
@@ -130,6 +148,7 @@ def get_custom_fields():
 				"fieldname": "education_parent_full_name",
 				"fieldtype": "Data",
 				"label": "Full Name",
+				"reqd": 1,
 				"insert_after": "education_parent_information",
 			},
 			{
@@ -137,26 +156,28 @@ def get_custom_fields():
 				"fieldtype": "Data",
 				"label": "Phone Number",
 				"options": "Phone",
-				"insert_after": "education_parent_full_name",
+				"reqd": 1,
+				"insert_after": "education_parent_column_break",
+			},
+			{
+				"fieldname": "education_parent_column_break",
+				"fieldtype": "Column Break",
+				"insert_after": "education_parent_email",
 			},
 			{
 				"fieldname": "education_parent_email",
 				"fieldtype": "Data",
 				"label": "Email",
 				"options": "Email",
-				"insert_after": "education_parent_phone_number",
+				"insert_after": "education_parent_full_name",
 			},
 			{
 				"fieldname": "education_parent_relationship",
 				"fieldtype": "Select",
 				"label": "Relationship",
 				"options": "\nMother\nFather\nOthers",
-				"insert_after": "education_parent_email",
-			},
-			{
-				"fieldname": "education_parent_column_break",
-				"fieldtype": "Column Break",
-				"insert_after": "education_parent_relationship",
+				"reqd": 1,
+				"insert_after": "education_parent_phone_number",
 			},
 			{
 				"fieldname": "education_guardian",
@@ -164,7 +185,7 @@ def get_custom_fields():
 				"label": "Guardian",
 				"options": "Guardian",
 				"read_only": 1,
-				"insert_after": "education_parent_column_break",
+				"insert_after": "education_parent_relationship",
 			},
 			{
 				"fieldname": "education_course_source_information",
@@ -176,38 +197,31 @@ def get_custom_fields():
 				"fieldname": "education_items",
 				"fieldtype": "Table",
 				"label": "Items",
-				"options": "Education Lead Item",
+				"options": "Sales Order Item",
+				"reqd": 1,
 				"insert_after": "education_course_source_information",
-			},
-			{
-				"fieldname": "education_course_source_column_break",
-				"fieldtype": "Column Break",
-				"insert_after": "education_items",
 			},
 			{
 				"fieldname": "education_campaign",
 				"fieldtype": "Link",
 				"label": "Campaign",
-				"options": "Campaign",
-				"insert_after": "education_course_source_column_break",
-			},
-			{
-				"fieldname": "education_delivery_date",
-				"fieldtype": "Date",
-				"label": "Delivery Date",
-				"insert_after": "education_campaign",
+				"options": "UTM Campaign",
+				"reqd": 1,
+				"insert_after": "education_items",
 			},
 			{
 				"fieldname": "education_auto_order_section",
 				"fieldtype": "Section Break",
+				"hidden": 1,
 				"label": "Auto Sales Order",
 				"collapsible": 1,
-				"insert_after": "education_delivery_date",
+				"insert_after": "education_campaign",
 			},
 			{
 				"default": "1",
 				"fieldname": "education_auto_create_sales_order",
 				"fieldtype": "Check",
+				"hidden": 1,
 				"label": "Auto Create Sales Order",
 				"insert_after": "education_auto_order_section",
 			},
@@ -215,12 +229,14 @@ def get_custom_fields():
 				"default": "0",
 				"fieldname": "education_submit_sales_order",
 				"fieldtype": "Check",
+				"hidden": 1,
 				"label": "Submit Sales Order Automatically",
 				"insert_after": "education_auto_create_sales_order",
 			},
 			{
 				"fieldname": "education_auto_order_status",
 				"fieldtype": "Select",
+				"hidden": 1,
 				"label": "Auto Order Status",
 				"options": "\nPending\nSkipped\nQueued\nCompleted\nFailed",
 				"read_only": 1,
@@ -229,11 +245,13 @@ def get_custom_fields():
 			{
 				"fieldname": "education_auto_order_column_break",
 				"fieldtype": "Column Break",
+				"hidden": 1,
 				"insert_after": "education_auto_order_status",
 			},
 			{
 				"fieldname": "education_auto_opportunity",
 				"fieldtype": "Link",
+				"hidden": 1,
 				"label": "Opportunity",
 				"options": "Opportunity",
 				"read_only": 1,
@@ -242,6 +260,7 @@ def get_custom_fields():
 			{
 				"fieldname": "education_auto_quotation",
 				"fieldtype": "Link",
+				"hidden": 1,
 				"label": "Quotation",
 				"options": "Quotation",
 				"read_only": 1,
@@ -250,6 +269,7 @@ def get_custom_fields():
 			{
 				"fieldname": "education_auto_sales_order",
 				"fieldtype": "Link",
+				"hidden": 1,
 				"label": "Sales Order",
 				"options": "Sales Order",
 				"read_only": 1,
@@ -258,6 +278,7 @@ def get_custom_fields():
 			{
 				"fieldname": "education_auto_customer",
 				"fieldtype": "Link",
+				"hidden": 1,
 				"label": "Customer",
 				"options": "Customer",
 				"read_only": 1,
@@ -266,6 +287,7 @@ def get_custom_fields():
 			{
 				"fieldname": "education_auto_order_error",
 				"fieldtype": "Small Text",
+				"hidden": 1,
 				"label": "Auto Order Error",
 				"read_only": 1,
 				"insert_after": "education_auto_customer",
@@ -308,16 +330,32 @@ def get_custom_fields():
 				"insert_after": "ignore_pricing_rule",
 			},
 			{
+				"fieldname": "education_lead",
+				"fieldtype": "Link",
+				"label": "Lead",
+				"options": "Lead",
+				"read_only": 1,
+				"insert_after": "student_info_section",
+			},
+			{
 				"fieldname": "student",
 				"fieldtype": "Link",
 				"label": "Student",
 				"options": "Student",
-				"insert_after": "student_info_section",
+				"insert_after": "education_lead",
+			},
+			{
+				"fieldname": "education_guardian",
+				"fieldtype": "Link",
+				"label": "Guardian",
+				"options": "Guardian",
+				"read_only": 1,
+				"insert_after": "student",
 			},
 			{
 				"fieldname": "column_break_ejcc",
 				"fieldtype": "Column Break",
-				"insert_after": "student",
+				"insert_after": "education_guardian",
 			},
 			{
 				"fieldname": "fee_schedule",
@@ -334,14 +372,95 @@ def apply_lead_property_setters():
 	delete_removed_lead_custom_fields()
 
 	for fieldname in get_core_lead_fields():
+		hidden = 0 if fieldname == "gender" else 1
 		make_property_setter(
 			"Lead",
 			fieldname,
 			"hidden",
-			1,
+			hidden,
 			"Check",
 			validate_fields_for_doctype=False,
 		)
+
+	make_property_setter(
+		"Lead",
+		"education_items",
+		"allow_bulk_edit",
+		1,
+		"Check",
+		validate_fields_for_doctype=False,
+	)
+
+	# Remove mandatory from core Lead fields (not needed for education leads)
+	for fieldname in ("first_name", "company_name"):
+		make_property_setter(
+			"Lead",
+			fieldname,
+			"reqd",
+			0,
+			"Check",
+			validate_fields_for_doctype=False,
+		)
+
+	delete_property_setter("Lead", "insert_after", "gender")
+	apply_lead_field_order()
+
+
+def apply_lead_field_order():
+	lead_fieldnames = [df.fieldname for df in frappe.get_meta("Lead", cached=False).fields]
+	field_order = []
+
+	for fieldname in get_priority_lead_fields():
+		if fieldname in lead_fieldnames and fieldname not in field_order:
+			field_order.append(fieldname)
+
+	for fieldname in lead_fieldnames:
+		if fieldname not in field_order:
+			field_order.append(fieldname)
+
+	make_property_setter(
+		"Lead",
+		None,
+		"field_order",
+		json.dumps(field_order),
+		"Text",
+		for_doctype=True,
+		validate_fields_for_doctype=False,
+	)
+	frappe.clear_cache(doctype="Lead")
+
+
+def get_priority_lead_fields():
+	return [
+		"naming_series",
+		"education_general_information",
+		"education_student_full_name",
+		"gender",
+		"education_grade_class",
+		"education_general_column_break",
+		"education_date_of_birth",
+		"education_lead_owner_employee",
+		"education_parent_information",
+		"education_parent_full_name",
+		"education_parent_email",
+		"education_parent_column_break",
+		"education_parent_phone_number",
+		"education_parent_relationship",
+		"education_guardian",
+		"education_course_source_information",
+		"education_items",
+		"education_campaign",
+		"education_auto_order_section",
+		"education_auto_create_sales_order",
+		"education_submit_sales_order",
+		"education_auto_order_status",
+		"education_auto_order_column_break",
+		"education_auto_opportunity",
+		"education_auto_quotation",
+		"education_auto_sales_order",
+		"education_auto_customer",
+		"education_auto_order_error",
+	]
 
 
 def get_core_lead_fields():
@@ -423,9 +542,12 @@ def get_core_lead_fields():
 
 def delete_removed_lead_custom_fields():
 	for custom_field in (
-		"Lead-education_student_full_name",
-		"Lead-education_general_column_break",
 		"Lead-education_student",
+		"Lead-education_delivery_date",
+		"Lead-education_course_source_column_break",
+		"Lead-education_parent_second_row",
+		"Lead-education_parent_relationship_column_break",
+		"Lead-education_campaign_row",
 	):
 		if not frappe.db.exists("Custom Field", custom_field):
 			continue

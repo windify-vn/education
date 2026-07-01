@@ -112,6 +112,7 @@ global_search_doctypes = {
 
 # include js in doctype views
 # doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {"Lead": "public/js/lead.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -194,10 +195,12 @@ doc_events = {
 	},
 	"Lead": {
 		"before_validate": "education.education.lead.before_validate",
-		"validate": "education.education.lead.validate",
 		"after_insert": "education.education.lead.after_insert",
 		"on_update": "education.education.lead.on_update",
-	}
+	},
+	"Sales Order": {
+		"on_submit": "education.education.sales_order.on_submit",
+	},
 }
 
 # Scheduled Tasks

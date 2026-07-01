@@ -7,13 +7,52 @@ from frappe.utils import nowdate, today
 
 
 def before_validate(doc, method=None):
+	sync_student_name(doc)
+	fill_mandatory_defaults(doc)
 	sync_employee_owner(doc)
 	sync_campaign(doc)
 	sync_parent_contact_to_lead(doc)
 
 
+def fill_mandatory_defaults(doc):
+	"""Auto-fill mandatory Lead fields so users don't have to enter them manually."""
+	# Lead: First Name
+	if not doc.get("first_name"):
+		doc.first_name = (
+			doc.get("education_student_full_name")
+			or doc.get("lead_name")
+			or doc.get("email_id")
+			or doc.get("mobile_no")
+			or "-"
+		)
+
+	if doc.get("company_name") == "-":
+		doc.company_name = None
+
+	# Lead items reuse Sales Order Item; fill fetched fields in case fetch_from hasn't triggered.
+	for item in doc.get("education_items") or []:
+		if item.get("item_code") and not item.get("item_name"):
+			item_doc = frappe.get_cached_doc("Item", item.item_code)
+			item.item_name = item_doc.item_name
+			if not item.get("uom"):
+				item.uom = item_doc.stock_uom
+			if not item.get("description"):
+				item.description = item_doc.description
+
+		# Auto-calculate amount
+		qty = item.get("qty") or 1
+		rate = item.get("rate") or 0
+		conversion_factor = item.get("conversion_factor") or 1
+		amount = qty * rate
+		item.conversion_factor = conversion_factor
+		item.stock_qty = qty * conversion_factor
+		item.amount = amount
+		item.base_rate = item.get("base_rate") or rate
+		item.base_amount = item.get("base_amount") or amount
+
+
 def validate(doc, method=None):
-	ensure_guardian(doc)
+	pass
 
 
 def after_insert(doc, method=None):
@@ -21,8 +60,31 @@ def after_insert(doc, method=None):
 
 
 def on_update(doc, method=None):
-	ensure_guardian(doc)
 	queue_auto_sales_order(doc)
+
+
+def sync_student_name(doc):
+	full_name = doc.get("education_student_full_name")
+	if not full_name:
+		return
+
+	from erpnext.selling.doctype.customer.customer import parse_full_name
+
+	doc.lead_name = full_name
+	first_name, middle_name, last_name = parse_full_name(full_name)
+
+	if first_name:
+		doc.first_name = first_name
+	doc.middle_name = middle_name
+	doc.last_name = last_name
+
+
+def get_lead_display_name(lead):
+	return (
+		lead.get("education_student_full_name")
+		or lead.get("lead_name")
+		or None
+	)
 
 
 def sync_employee_owner(doc):
@@ -58,92 +120,6 @@ def sync_parent_contact_to_lead(doc):
 		)
 		if not duplicate_lead:
 			doc.email_id = parent_email
-
-
-def ensure_guardian(doc):
-	parent_name = doc.get("education_parent_full_name")
-	parent_phone = doc.get("education_parent_phone_number")
-	parent_email = doc.get("education_parent_email")
-
-	if not (parent_name or parent_phone or parent_email):
-		return
-
-	guardian = get_or_create_guardian(parent_name, parent_phone, parent_email)
-	if not guardian:
-		return
-
-	if doc.get("education_guardian") != guardian:
-		doc.education_guardian = guardian
-		if not doc.is_new():
-			frappe.db.set_value("Lead", doc.name, "education_guardian", guardian, update_modified=False)
-
-	link_guardian_to_student(doc, guardian)
-
-
-def get_or_create_guardian(parent_name=None, parent_phone=None, parent_email=None):
-	guardian = None
-
-	if parent_phone:
-		guardian = frappe.db.get_value("Guardian", {"mobile_number": parent_phone})
-
-	if not guardian and parent_email:
-		guardian = frappe.db.get_value("Guardian", {"email_address": parent_email})
-
-	if guardian:
-		guardian_doc = frappe.get_doc("Guardian", guardian)
-		changed = False
-
-		if parent_name and not guardian_doc.guardian_name:
-			guardian_doc.guardian_name = parent_name
-			changed = True
-		if parent_email and not guardian_doc.email_address:
-			guardian_doc.email_address = parent_email
-			changed = True
-		if parent_phone and not guardian_doc.mobile_number:
-			guardian_doc.mobile_number = parent_phone
-			changed = True
-
-		if changed:
-			guardian_doc.save(ignore_permissions=True)
-
-		return guardian
-
-	if not parent_name:
-		parent_name = parent_phone or parent_email
-
-	guardian_doc = frappe.get_doc(
-		{
-			"doctype": "Guardian",
-			"guardian_name": parent_name,
-			"mobile_number": parent_phone,
-			"email_address": parent_email,
-		}
-	)
-	guardian_doc.insert(ignore_permissions=True)
-	return guardian_doc.name
-
-
-def link_guardian_to_student(doc, guardian):
-	student = doc.get("education_student")
-	if not student:
-		return
-
-	student_doc = frappe.get_doc("Student", student)
-	for row in student_doc.get("guardians"):
-		if row.guardian == guardian:
-			if doc.get("education_parent_relationship") and not row.relation:
-				row.relation = doc.get("education_parent_relationship")
-				student_doc.save(ignore_permissions=True)
-			return
-
-	student_doc.append(
-		"guardians",
-		{
-			"guardian": guardian,
-			"relation": doc.get("education_parent_relationship"),
-		},
-	)
-	student_doc.save(ignore_permissions=True)
 
 
 def queue_auto_sales_order(doc):
@@ -215,6 +191,10 @@ def create_order_documents(lead):
 		frappe.throw(_("Please set Company on Lead or configure a default Company."))
 
 	currency = frappe.get_cached_value("Company", company, "default_currency")
+	display_name = get_lead_display_name(lead)
+	if lead.get("company_name") == "-" and display_name:
+		lead.company_name = None
+		frappe.db.set_value("Lead", lead.name, "company_name", None, update_modified=False)
 
 	opportunity = None
 	if lead.get("education_auto_opportunity"):
@@ -223,6 +203,8 @@ def create_order_documents(lead):
 		opportunity = make_opportunity(lead.name)
 		opportunity.company = company
 		opportunity.currency = currency
+		opportunity.customer_name = display_name
+		opportunity.title = display_name
 		opportunity.transaction_date = today()
 		opportunity.flags.ignore_permissions = True
 
@@ -245,6 +227,7 @@ def create_order_documents(lead):
 	else:
 		quotation = make_quotation(opportunity.name)
 		quotation.company = company
+		quotation.customer_name = display_name
 		quotation.transaction_date = today()
 		quotation.flags.ignore_permissions = True
 
@@ -264,15 +247,15 @@ def create_order_documents(lead):
 
 	sales_order = make_sales_order(quotation.name)
 	sales_order.flags.ignore_permissions = True
-	sales_order.delivery_date = lead.get("education_delivery_date") or nowdate()
+	if display_name:
+		sales_order.customer_name = display_name
+	sales_order.delivery_date = nowdate()
 
-	if sales_order.meta.has_field("student") and lead.get("education_student"):
-		sales_order.student = lead.get("education_student")
+	if sales_order.meta.has_field("education_lead"):
+		sales_order.education_lead = lead.name
 
 	for source_item, sales_order_item in zip(lead.get("education_items"), sales_order.get("items")):
-		sales_order_item.delivery_date = (
-			source_item.delivery_date or lead.get("education_delivery_date") or nowdate()
-		)
+		sales_order_item.delivery_date = source_item.delivery_date or nowdate()
 		if source_item.warehouse and not sales_order_item.warehouse:
 			sales_order_item.warehouse = source_item.warehouse
 
@@ -284,18 +267,27 @@ def create_order_documents(lead):
 
 
 def get_opportunity_item(item):
-	item_doc = frappe.get_cached_doc("Item", item.item_code)
 	qty = item.qty or 1
 	rate = item.rate or 0
 
+	item_name = item.item_name
+	uom = item.uom
+	description = item.description
+
+	if item.item_code and (not item_name or not uom):
+		item_doc = frappe.get_cached_doc("Item", item.item_code)
+		item_name = item_name or item_doc.item_name
+		uom = uom or item_doc.stock_uom
+		description = description or item_doc.description
+
 	return {
 		"item_code": item.item_code,
-		"item_name": item.item_name or item_doc.item_name,
-		"uom": item.uom or item_doc.stock_uom,
+		"item_name": item_name or item.item_code or "-",
+		"uom": uom or "Nos",
 		"qty": qty,
 		"rate": rate,
 		"amount": qty * rate,
-		"description": item.description or item_doc.description,
+		"description": description,
 	}
 
 
