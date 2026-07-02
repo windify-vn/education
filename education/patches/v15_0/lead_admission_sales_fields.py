@@ -39,6 +39,20 @@ def apply_final_lead_field_settings():
 		},
 	)
 	set_custom_field_values(
+		"Lead-education_interest_level",
+		{
+			"fieldtype": "Select",
+			"options": "\nRất quan tâm\nQuan tâm\nTrung bình\nÍt quan tâm",
+			"insert_after": "education_grade_class",
+		},
+	)
+	set_custom_field_values(
+		"Lead-education_general_column_break",
+		{
+			"insert_after": "education_interest_level",
+		},
+	)
+	set_custom_field_values(
 		"Lead-education_campaign",
 		{
 			"fieldtype": "Link",

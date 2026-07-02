@@ -39,9 +39,22 @@ frappe.ui.form.on("Lead", {
 		// Auto-calculate amount for each items row
 		(frm.doc.education_items || []).forEach((row) => {
 			const qty = row.qty || 1;
-			const rate = row.rate || 0;
+			let price_list_rate = row.price_list_rate || 0;
+			const discount = row.discount_percentage || 0;
+			
+			// Tính rate nếu có discount
+			let rate = row.rate || 0;
+			if (discount > 0 && price_list_rate > 0) {
+				rate = price_list_rate * (1 - discount / 100.0);
+				row.rate = rate;
+			} else if (!row.rate) {
+				rate = price_list_rate;
+				row.rate = rate;
+			}
+
 			const conversion_factor = row.conversion_factor || 1;
 			const amount = qty * rate;
+			
 			row.conversion_factor = conversion_factor;
 			row.stock_qty = qty * conversion_factor;
 			row.amount = amount;
@@ -59,7 +72,10 @@ function education_patch_lead_meta() {
 	// Remove mandatory from Lead's first_name and company_name in client-side meta
 	["first_name", "company_name"].forEach((fieldname) => {
 		const df = frappe.meta.get_docfield("Lead", fieldname);
-		if (df) df.reqd = 0;
+		if (df) {
+			df.reqd = 0;
+			df.mandatory_depends_on = "";
+		}
 	});
 }
 

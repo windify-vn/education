@@ -3,6 +3,7 @@
 
 import frappe
 from frappe import _
+from frappe.utils import flt
 from frappe.utils import nowdate, today
 
 
@@ -39,11 +40,32 @@ def fill_mandatory_defaults(doc):
 			if not item.get("description"):
 				item.description = item_doc.description
 
+		# Tự động lấy giá niêm yết (price_list_rate) nếu chưa có
+		if not item.get("price_list_rate"):
+			price = frappe.db.get_value(
+				"Item Price", 
+				{"item_code": item.item_code, "price_list": "Standard Selling"}, 
+				"price_list_rate"
+			)
+			item.price_list_rate = price or 0
+
+		# Tính rate (giá sau giảm) từ discount_percentage
+		discount = flt(item.get("discount_percentage") or 0)
+		price_list_rate = flt(item.get("price_list_rate") or 0)
+		
+		# Nếu user nhập thủ công rate thì ưu tiên, nếu không thì tính từ discount
+		# (Frappe client script không chạy trên Lead nên phải tự tính)
+		if discount > 0:
+			item.rate = price_list_rate * (1 - discount / 100.0)
+		elif not item.get("rate"):
+			item.rate = price_list_rate
+
 		# Auto-calculate amount
-		qty = item.get("qty") or 1
-		rate = item.get("rate") or 0
-		conversion_factor = item.get("conversion_factor") or 1
+		qty = flt(item.get("qty") or 1)
+		rate = flt(item.get("rate") or 0)
+		conversion_factor = flt(item.get("conversion_factor") or 1)
 		amount = qty * rate
+		
 		item.conversion_factor = conversion_factor
 		item.stock_qty = qty * conversion_factor
 		item.amount = amount
@@ -234,6 +256,12 @@ def create_order_documents(lead):
 		for source_item, quotation_item in zip(lead.get("education_items"), quotation.get("items")):
 			if source_item.warehouse and not quotation_item.warehouse:
 				quotation_item.warehouse = source_item.warehouse
+			
+			# Sync discount and pricing
+			quotation_item.discount_percentage = source_item.discount_percentage
+			quotation_item.price_list_rate = source_item.price_list_rate
+			quotation_item.rate = source_item.rate
+			quotation_item.amount = source_item.amount
 
 		quotation.insert(ignore_permissions=True)
 		quotation.submit()
@@ -258,6 +286,12 @@ def create_order_documents(lead):
 		sales_order_item.delivery_date = source_item.delivery_date or nowdate()
 		if source_item.warehouse and not sales_order_item.warehouse:
 			sales_order_item.warehouse = source_item.warehouse
+
+		# Sync discount and pricing
+		sales_order_item.discount_percentage = source_item.discount_percentage
+		sales_order_item.price_list_rate = source_item.price_list_rate
+		sales_order_item.rate = source_item.rate
+		sales_order_item.amount = source_item.amount
 
 	sales_order.insert(ignore_permissions=True)
 	if lead.get("education_submit_sales_order"):
@@ -288,6 +322,8 @@ def get_opportunity_item(item):
 		"rate": rate,
 		"amount": qty * rate,
 		"description": description,
+		"discount_percentage": item.discount_percentage,
+		"price_list_rate": item.price_list_rate,
 	}
 
 

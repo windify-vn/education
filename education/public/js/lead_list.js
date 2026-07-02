@@ -9,6 +9,10 @@ frappe.listview_settings["Lead"] = frappe.listview_settings["Lead"] || {};
 		listview.page.add_inner_button(__("Xuất bảng theo dõi doanh số"), function () {
 			education_show_sales_report_dialog();
 		});
+
+		listview.page.add_inner_button(__("Thống kê khách hàng"), function () {
+			education_show_customer_statistics_dialog();
+		});
 	};
 })();
 
@@ -105,5 +109,106 @@ function education_download_sales_report(month, year) {
 		})
 		.catch((err) => {
 			console.error("Sales report export failed:", err);
+		});
+}
+
+function education_show_customer_statistics_dialog() {
+	const today = frappe.datetime.get_today();
+	const monthStart = frappe.datetime.month_start(today);
+
+	const d = new frappe.ui.Dialog({
+		title: __("Thống kê khách hàng"),
+		fields: [
+			{
+				fieldtype: "Date",
+				fieldname: "from_date",
+				label: __("Từ ngày"),
+				default: monthStart,
+				reqd: 1,
+			},
+			{
+				fieldtype: "Date",
+				fieldname: "to_date",
+				label: __("Đến ngày"),
+				default: today,
+				reqd: 1,
+			},
+		],
+		primary_action_label: __("Xuất Excel"),
+		primary_action(values) {
+			if (values.from_date > values.to_date) {
+				frappe.msgprint({
+					title: __("Ngày không hợp lệ"),
+					message: __("Từ ngày không được lớn hơn Đến ngày."),
+					indicator: "red",
+				});
+				return;
+			}
+
+			d.hide();
+			education_download_customer_statistics(values.from_date, values.to_date);
+		},
+	});
+
+	d.show();
+}
+
+function education_download_customer_statistics(from_date, to_date) {
+	frappe.show_alert({
+		message: __("Đang tạo thống kê khách hàng..."),
+		indicator: "blue",
+	});
+
+	fetch(`/api/method/education.education.lead_report.export_customer_statistics`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/x-www-form-urlencoded",
+			"X-Frappe-CSRF-Token": frappe.csrf_token,
+		},
+		body: new URLSearchParams({
+			cmd: "education.education.lead_report.export_customer_statistics",
+			from_date: from_date,
+			to_date: to_date,
+		}).toString(),
+	})
+		.then((response) => {
+			if (!response.ok) {
+				return response.json().then((data) => {
+					const msg =
+						(data._server_messages && JSON.parse(data._server_messages)[0]) ||
+						data.exception ||
+						__("Không thể tạo thống kê khách hàng.");
+					frappe.msgprint({ title: __("Lỗi"), message: msg, indicator: "red" });
+					throw new Error(msg);
+				});
+			}
+
+			const disposition = response.headers.get("Content-Disposition") || "";
+			const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+			const filename = match
+				? match[1].replace(/['"]/g, "")
+				: `thong_ke_khach_hang_${from_date}_${to_date}.xlsx`;
+
+			return response.blob().then((blob) => ({ blob, filename }));
+		})
+		.then(({ blob, filename }) => {
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = filename;
+			document.body.appendChild(a);
+			a.click();
+			setTimeout(() => {
+				URL.revokeObjectURL(url);
+				document.body.removeChild(a);
+			}, 500);
+
+			frappe.show_alert({
+				message: __("Đã xuất thống kê khách hàng thành công."),
+				indicator: "green",
+			});
+		})
+		.catch((err) => {
+			console.error("Customer statistics export failed:", err);
 		});
 }
