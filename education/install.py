@@ -126,9 +126,16 @@ def get_custom_fields():
 				"insert_after": "gender",
 			},
 			{
+				"fieldname": "education_interest_level",
+				"fieldtype": "Select",
+				"label": "Mức độ quan tâm",
+				"options": "\nRất quan tâm\nQuan tâm\nTrung bình\nÍt quan tâm",
+				"insert_after": "education_grade_class",
+			},
+			{
 				"fieldname": "education_general_column_break",
 				"fieldtype": "Column Break",
-				"insert_after": "education_grade_class",
+				"insert_after": "education_interest_level",
 			},
 			{
 				"fieldname": "education_lead_owner_employee",
@@ -443,6 +450,7 @@ def get_priority_lead_fields():
 		"education_student_full_name",
 		"gender",
 		"education_grade_class",
+		"education_interest_level",
 		"education_general_column_break",
 		"education_date_of_birth",
 		"education_lead_owner_employee",
